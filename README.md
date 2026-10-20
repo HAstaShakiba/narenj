@@ -30,15 +30,26 @@ apps no way to do either.
 
 ## Install
 
-### Debian / Ubuntu package
+### From the apt repository (Ubuntu 22.04+ / Debian)
+
+```sh
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://hastashakiba.github.io/narenj/narenj-archive-keyring.gpg | sudo tee /etc/apt/keyrings/narenj.gpg >/dev/null
+echo "deb [signed-by=/etc/apt/keyrings/narenj.gpg] https://hastashakiba.github.io/narenj stable main" | sudo tee /etc/apt/sources.list.d/narenj.list
+sudo apt update
+sudo apt install narenj
+narenj --setup                      # once per user: shortcut + extension
+```
+
+Log out and back in once so GNOME Shell loads the extension. Updates then arrive with `apt upgrade`.
+
+### Building the package yourself
 
 ```sh
 ./packaging/build-deb.sh            # writes dist/narenj_1.0.0_all.deb
 sudo apt install ./dist/narenj_1.0.0_all.deb
 narenj --setup                      # once per user: shortcut + extension
 ```
-
-Log out and back in once so GNOME Shell loads the extension.
 
 ### From this checkout (current user only)
 
@@ -54,6 +65,15 @@ On Ubuntu 22.04 the package pulls in everything it needs, including `fonts-inter
 The UI uses Apple's San Francisco font when it is installed and otherwise
 [Inter](https://rsms.me/inter/), its closest open counterpart. `fonts/InterVariable.ttf` is
 Inter 4.1, distributed under the SIL Open Font License (see `fonts/LICENSE-Inter-OFL.txt`).
+
+## Releasing
+
+1. Bump the version and build: `./packaging/build-deb.sh 1.0.1`
+2. Publish: `./packaging/publish-apt.sh` signs the repository with the "Narenj apt repository" GnuPG
+   key and pushes it to the `gh-pages` branch (`--dry-run` builds it in `dist/apt-site` instead).
+
+Keep a backup of that key (`gpg --export-secret-keys "Narenj apt repository"`): without it, updates
+can no longer be signed for people who already trust the repository.
 
 ## License
 
