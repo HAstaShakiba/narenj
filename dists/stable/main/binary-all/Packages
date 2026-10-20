@@ -70,3 +70,27 @@ Description: Drag-and-drop ffmpeg wheel for GNOME
  above other windows; run "narenj --setup" once per user to enable it and the
  Ctrl+Alt+N shortcut (Narenj also does this on its first start).
 
+Package: narenj
+Architecture: all
+Version: 1.2.0
+Priority: optional
+Section: video
+Maintainer: HAstaShakiba <HAstaShakiba@users.noreply.github.com>
+Installed-Size: 164
+Depends: python3 (>= 3.10), python3-gi, python3-gi-cairo, python3-cairo, gir1.2-gtk-4.0 (>= 4.6),
+ gir1.2-adw-1 (>= 1.1), gir1.2-rsvg-2.0, gir1.2-pango-1.0, ffmpeg, fonts-inter, adwaita-icon-theme
+Recommends: gnome-shell (>= 42)
+Filename: pool/main/n/narenj/narenj_1.2.0_all.deb
+Size: 24946
+MD5sum: ea9a3ad17e285f09d3a34368f06e499e
+SHA1: a4c4b343df7a50d57135aa0d10c5d1d200745fae
+SHA256: 092dce152b0cba3323a0a86fb12a8cd31dea87868453d94a12e6636f704212c3
+SHA512: fdfabc0a4b82aeb1ecc414916534dae6fa4064f04b5dfa04455d0355c3aa2234484dab3f36016a4a58363647ccc1aa6b50a3fdf43fd574f46fa8745e48bba651
+Description: Drag-and-drop ffmpeg wheel for GNOME
+ Drop a file on Narenj's wheel and pick a wedge to convert, compress, trim,
+ resize or otherwise process it with ffmpeg, or to open, reveal, copy or
+ trash it. Shift, Ctrl and Alt switch between the Convert, Tools and Actions
+ wheels, even while dragging. A small GNOME Shell extension keeps the wheel
+ above other windows; run "narenj --setup" once per user to enable it and the
+ Ctrl+Alt+N shortcut (Narenj also does this on its first start).
+
