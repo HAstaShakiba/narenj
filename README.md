@@ -12,20 +12,6 @@ processes it with ffmpeg and saves the result next to the original. Everything r
 </p>
 <p align="center"><sub>The Convert, Tools and Actions wheels (Shift, Ctrl, Alt) in the dark theme</sub></p>
 
-## Switching wheels: Shift, Ctrl, Alt
-
-The wheel has three tabs, and you switch between them with the modifier keys:
-
-| Key | Wheel |
-|---|---|
-| **Shift** | Convert |
-| **Ctrl** | Tools |
-| **Alt** | Actions |
-
-This works **while you are dragging a file onto the wheel** too: keep the mouse button down, press
-Shift, Ctrl or Alt, and the wheel changes under the file before you drop it. The mouse wheel and Tab
-also switch tabs, and the settings choose which one the wheel opens on.
-
 ## Wheels
 
 | Wheel | Video | Audio | Image |

@@ -65,14 +65,27 @@ gpg --batch --yes --local-user "$KEY" -abs -o dists/stable/Release.gpg dists/sta
 gpg --export "$KEY" > narenj-archive-keyring.gpg
 touch .nojekyll  # serve dists/ and pool/ as plain files
 
+# the newest version in the pool; its GitHub release carries the Windows installer
+VERSION="$(ls pool/main/n/narenj | sed -n 's/^narenj_\(.*\)_all\.deb$/\1/p' | sort -V | tail -1)"
+SETUP="https://github.com/HAstaShakiba/narenj/releases/download/v$VERSION/narenj-$VERSION-setup.exe"
+
 cat > index.html <<HTML
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Narenj apt repository</title>
+<html lang="en"><head><meta charset="utf-8"><title>Narenj</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>body{font:16px/1.5 system-ui,sans-serif;max-width:46rem;margin:3rem auto;padding:0 1rem}
-pre{background:#f4f4f5;padding:1rem;border-radius:8px;overflow-x:auto}</style></head>
+pre{background:#f4f4f5;padding:1rem;border-radius:8px;overflow-x:auto}
+.button{display:inline-block;background:#f25c1f;color:#fff;padding:.6rem 1.2rem;border-radius:8px;
+text-decoration:none;font-weight:600}</style></head>
 <body><h1>Narenj</h1>
-<p>A drag-and-drop ffmpeg wheel for GNOME. Source: <a href="https://github.com/HAstaShakiba/narenj">github.com/HAstaShakiba/narenj</a></p>
+<p>A drag-and-drop ffmpeg wheel for GNOME and Windows. Latest version: $VERSION.
+Source: <a href="https://github.com/HAstaShakiba/narenj">github.com/HAstaShakiba/narenj</a></p>
+<h2>Install on Windows 10 / 11</h2>
+<p><a class="button" href="$SETUP">Download narenj-$VERSION-setup.exe</a></p>
+<p>Run the installer. It installs for your user without admin rights and brings its own Python,
+GTK and ffmpeg. Press <b>Ctrl+Alt+N</b> to open the wheel and again to close it; change the keys in
+Start menu &rsaquo; Narenj &rsaquo; Properties &rsaquo; Shortcut key.
+Older versions are on the <a href="https://github.com/HAstaShakiba/narenj/releases">releases page</a>.</p>
 <h2>Install on Ubuntu / Debian</h2>
 <pre>sudo install -d -m 0755 /etc/apt/keyrings
 curl -fsSL $URL/narenj-archive-keyring.gpg | sudo tee /etc/apt/keyrings/narenj.gpg &gt;/dev/null
@@ -80,7 +93,8 @@ echo "deb [signed-by=/etc/apt/keyrings/narenj.gpg] $URL stable main" | sudo tee 
 sudo apt update
 sudo apt install narenj
 narenj --setup</pre>
-<p>Then log out and back in once so GNOME Shell loads the always-on-top extension.</p>
+<p>Then log out and back in once so GNOME Shell loads the always-on-top extension.
+Updates arrive with <code>sudo apt upgrade</code>.</p>
 </body></html>
 HTML
 
