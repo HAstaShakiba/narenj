@@ -22,11 +22,68 @@ jobs:
       - name: Test
         run: python3 -m unittest discover -s tests -v
 
-  # A pushed tag like v1.0.1 builds that version's .deb and publishes it as a GitHub release.
+  # Windows: the same tests on MSYS2's Python and GTK, then a self-contained build (Python, GTK,
+  # static ffmpeg) that must start on its own, packed into an Inno Setup installer.
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-python
+            mingw-w64-ucrt-x86_64-python-gobject
+            mingw-w64-ucrt-x86_64-python-cairo
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-libadwaita
+            mingw-w64-ucrt-x86_64-librsvg
+            mingw-w64-ucrt-x86_64-adwaita-icon-theme
+            mingw-w64-ucrt-x86_64-ntldd
+            unzip
+      - name: Fetch ffmpeg
+        run: |
+          curl -fsSL -o ffmpeg.zip \
+            https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-gpl-7.1.zip
+          unzip -q ffmpeg.zip -d ffmpeg
+          mv ffmpeg/*/bin ffmpeg-bin
+          cp ffmpeg/*/LICENSE.txt ffmpeg-bin/ || true
+      - name: Test
+        run: PATH="$PWD/ffmpeg-bin:$PATH" python -m unittest discover -s tests -v
+      - name: Build
+        run: packaging/windows/build.sh ffmpeg-bin
+      - name: Self-test the build outside MSYS2
+        shell: pwsh
+        timeout-minutes: 3
+        run: |
+          $env:NARENJ_SELF_TEST = "1"
+          $app = "dist\windows\Narenj"
+          $p = Start-Process "$app\bin\python.exe" -ArgumentList "$app\share\narenj\narenj.py" `
+            -PassThru -NoNewWindow -Wait -RedirectStandardOutput out.txt -RedirectStandardError err.txt
+          Get-Content out.txt, err.txt
+          if ($p.ExitCode -ne 0 -or -not (Select-String -Quiet "self-test" out.txt)) { exit 1 }
+      - name: Installer
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe")) { choco install innosetup -y --no-progress }
+          $v = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME.TrimStart("v") } else { "0.0.0-dev" }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe" "/DVersion=$v" packaging\windows\narenj.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/narenj-*-setup.exe
+
+  # A pushed tag like v1.0.1 builds that version's .deb and publishes it, with the Windows
+  # installer, as a GitHub release.
   # The signed apt repository is still published locally (packaging/publish-apt.sh), since
   # its signing key never leaves the maintainer's machine.
   release:
-    needs: test
+    needs: [test, windows]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-22.04
     permissions:
@@ -35,9 +92,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build package
         run: ./packaging/build-deb.sh "${GITHUB_REF_NAME#v}"
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: dist
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*.deb \
+          gh release create "$GITHUB_REF_NAME" dist/*.deb dist/narenj-*-setup.exe \
             --verify-tag --title "Narenj ${GITHUB_REF_NAME#v}" --generate-notes

@@ -1,9 +1,10 @@
 #!/usr/bin/python3.10
-"""Narenj: a drag-and-drop ffmpeg wheel for GNOME.
+"""Narenj: a drag-and-drop ffmpeg wheel for GNOME and Windows.
 
 Drop a file on the wheel, pick a wedge, and ffmpeg does the rest.
 Three wheels, like Tangerine/FanDrop: Convert (Shift), Tools (Ctrl), Actions (Alt).
 """
+import hashlib
 import json
 import math
 import os
@@ -13,6 +14,21 @@ import subprocess
 import sys
 import tempfile
 import threading
+
+IS_WINDOWS = sys.platform == "win32"
+if IS_WINDOWS:
+    # The Windows build is a self-contained folder: <root>/bin/pythonw.exe, ffmpeg.exe and GTK's
+    # DLLs, <root>/lib for typelibs and gdk-pixbuf loaders. gdk-pixbuf needs absolute loader
+    # paths, so its cache ships as a template that is filled in for wherever Narenj was installed.
+    _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(sys.executable)))
+    _LOADERS = os.path.join(_ROOT, "lib", "gdk-pixbuf-2.0", "2.10.0", "loaders.cache.in")
+    if os.path.exists(_LOADERS):
+        _cache = os.path.join(os.environ.get("LOCALAPPDATA", _ROOT), "Narenj", "loaders.cache")
+        os.makedirs(os.path.dirname(_cache), exist_ok=True)
+        with open(_LOADERS, encoding="utf-8") as _src, open(_cache, "w", encoding="utf-8") as _dst:
+            _dst.write(_src.read().replace("@ROOT@", _ROOT.replace("\\", "/")))
+        os.environ["GDK_PIXBUF_MODULE_FILE"] = _cache
+        os.environ["PATH"] = os.path.join(_ROOT, "bin") + os.pathsep + os.environ.get("PATH", "")
 
 import gi
 
@@ -26,6 +42,8 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango, PangoCairo, Rsvg  # n
 APP_ID = "ir.narenj.Narenj"
 FFMPEG = shutil.which("ffmpeg")
 FFPROBE = shutil.which("ffprobe")
+# keep ffmpeg/ffprobe from flashing a console window on Windows
+NO_CONSOLE = {"creationflags": subprocess.CREATE_NO_WINDOW} if IS_WINDOWS else {}
 DEBUG = bool(os.environ.get("NARENJ_DEBUG"))
 SETTINGS_PATH = os.path.join(GLib.get_user_config_dir(), "narenj", "settings.json")
 # the same helper in GNOME 42-44's and GNOME 45+'s extension formats; Shell loads the one that fits
@@ -229,6 +247,34 @@ def save_settings(settings):
         json.dump(settings, f, indent=2)
 
 
+def win32_keep_on_top(window):
+    """Windows lets an app pin itself above other windows; GNOME needs the Shell extension."""
+    try:
+        import ctypes
+        gi.require_version("GdkWin32", "4.0")
+        from gi.repository import GdkWin32
+        hwnd = GdkWin32.Win32Surface.get_handle(window.get_surface())
+        hwnd_topmost, swp_nosize_nomove_noactivate = -1, 0x0001 | 0x0002 | 0x0010
+        ctypes.windll.user32.SetWindowPos(ctypes.c_void_p(hwnd), ctypes.c_void_p(hwnd_topmost),
+                                          0, 0, 0, 0, swp_nosize_nomove_noactivate)
+    except (ImportError, ValueError, OSError, AttributeError) as e:
+        if DEBUG:
+            print("could not keep the wheel on top:", e, flush=True)
+
+
+def win32_modifiers():
+    """Shift/Ctrl/Alt held right now, as Gdk masks. Windows reports them even while another
+    app (Explorer) owns the drag."""
+    import ctypes
+    held = ctypes.windll.user32.GetAsyncKeyState
+    mods = 0
+    for vk, mask in ((0x10, Gdk.ModifierType.SHIFT_MASK), (0x11, Gdk.ModifierType.CONTROL_MASK),
+                     (0x12, Gdk.ModifierType.ALT_MASK)):
+        if held(vk) & 0x8000:
+            mods |= int(mask)
+    return mods
+
+
 def _gsettings(schema, path=None):
     source = Gio.SettingsSchemaSource.get_default()
     if not source or not source.lookup(schema, True):
@@ -273,25 +319,42 @@ def probe(path):
              "format=duration,size,bit_rate,format_long_name:"
              "stream=codec_type,codec_name,width,height,r_frame_rate,sample_rate,channels",
              "-of", "json", path],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True, text=True, timeout=15, **NO_CONSOLE,
         )
         return json.loads(out.stdout or "{}")
     except (OSError, ValueError, subprocess.TimeoutExpired):
         return {}
 
 
-def svg_input_args(path):
-    """Rasterise SVGs sharply: at least 1024px wide instead of their often tiny intrinsic size."""
-    if file_ext(path) != "svg":
-        return []
-    widths = [s.get("width") or 0 for s in probe(path).get("streams", [])]
-    return ["-width", str(max(widths + [1024])), "-keep_ar", "1"]
+def rasterize_svg(path):
+    """Render an SVG to a PNG at least 1024 px wide with librsvg, since many ffmpeg builds
+    (all Windows ones) cannot read SVG. Returns the PNG's path."""
+    folder = os.path.join(tempfile.gettempdir(), "narenj-svg")
+    os.makedirs(folder, exist_ok=True)
+    stat = os.stat(path)
+    key = f"{os.path.abspath(path)}|{stat.st_mtime_ns}|{stat.st_size}".encode()
+    png = os.path.join(folder, hashlib.sha1(key).hexdigest() + ".png")
+    if not os.path.exists(png):
+        handle = Rsvg.Handle.new_from_file(path)
+        ok, w, h = handle.get_intrinsic_size_in_pixels()
+        if not ok or not w or not h:
+            w, h = 1024, 1024
+        zoom = max(1.0, 1024 / w)
+        width, height = max(1, round(w * zoom)), max(1, round(h * zoom))
+        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+        viewport = Rsvg.Rectangle()
+        viewport.x, viewport.y, viewport.width, viewport.height = 0, 0, width, height
+        handle.render_document(cairo.Context(surface), viewport)
+        surface.write_to_png(png)
+    return png
 
 
 def ffmpeg_command(src, kind, action, dst, extra_in=(), extra_out=()):
     """The ffmpeg call for one wedge; progress goes to stdout as key=value lines."""
     _, args = action.spec[kind]
-    return [FFMPEG, "-hide_banner", "-nostdin", "-y", *svg_input_args(src), *extra_in, "-i", src, *args, *extra_out,
+    if file_ext(src) == "svg":
+        src = rasterize_svg(src)
+    return [FFMPEG, "-hide_banner", "-nostdin", "-y", *extra_in, "-i", src, *args, *extra_out,
             "-progress", "pipe:1", "-nostats", dst]
 
 
@@ -374,7 +437,7 @@ def human_size(n):
 
 # BlinkMacSystemFont is Apple's San Francisco, which only ships (and is only licensed) on
 # Apple devices; use it if someone has it, else Inter, the open font closest to it
-FONT = "SF Pro Text, Inter Variable, Inter, Sans"
+FONT = "SF Pro Text, Inter Variable, Inter, Segoe UI Variable Text, Segoe UI, Sans"
 
 
 def _rgb(cr, c, a=1.0):
@@ -431,7 +494,7 @@ ICONS = {
     "trash": "user-trash",
     "join": "insert-link",
 }
-ICON_ROOT = "/usr/share/icons/Adwaita/scalable"
+ICON_ROOTS = [os.path.join(d, "icons", "Adwaita", "scalable") for d in GLib.get_system_data_dirs()]
 _icon_cache = {}
 
 
@@ -441,8 +504,9 @@ def icon_surface(name, size, scale):
     if key not in _icon_cache:
         surface = None
         for folder in ("actions", "mimetypes", "status", "devices", "places", "apps", "categories"):
-            path = f"{ICON_ROOT}/{folder}/{name}-symbolic.svg"
-            if os.path.exists(path):
+            path = next((p for p in (os.path.join(root, folder, f"{name}-symbolic.svg") for root in ICON_ROOTS)
+                         if os.path.exists(p)), None)
+            if path:
                 try:
                     handle = Rsvg.Handle.new_from_file(path)
                     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, size * scale, size * scale)
@@ -1040,6 +1104,9 @@ class Wheel(Gtk.DrawingArea):
             self._key_poll = GLib.timeout_add(70, self._poll_keys)
 
     def _poll_keys(self):
+        if IS_WINDOWS:
+            self._apply_modifiers(win32_modifiers())
+            return GLib.SOURCE_CONTINUE
         Gio.bus_get_sync(Gio.BusType.SESSION, None).call(
             "org.gnome.Shell", "/ir/narenj/Shell", "ir.narenj.Shell", "GetModifiers", None,
             GLib.VariantType.new("(u)"), Gio.DBusCallFlags.NONE, 200, None, self._on_keys)
@@ -1054,6 +1121,9 @@ class Wheel(Gtk.DrawingArea):
             self._shell_keys = False  # extension not loaded yet; drag actions still cover Shift
             self._reset_drag_keys()
             return
+        self._apply_modifiers(mods)
+
+    def _apply_modifiers(self, mods):
         if not self.drag_active:
             return
         mode = (CONVERT if mods & Gdk.ModifierType.SHIFT_MASK else
@@ -1135,7 +1205,7 @@ class Job:
 def run_job(job, cmd, duration):
     with tempfile.TemporaryFile() as err:
         try:
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=err, text=True)
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=err, text=True, **NO_CONSOLE)
         except OSError as e:
             GLib.idle_add(job.finish, False, str(e))
             return
@@ -1184,6 +1254,8 @@ class Window(Gtk.ApplicationWindow):
         self.wheel = Wheel(self)
         self.set_child(self.wheel)
         self.connect("map", lambda *_: GLib.idle_add(self.wheel.update_input_region))
+        if IS_WINDOWS:
+            self.connect("map", lambda *_: GLib.idle_add(win32_keep_on_top, self))
 
         keys = Gtk.EventControllerKey()
         keys.connect("key-pressed", self._on_key)
@@ -1406,6 +1478,9 @@ class Window(Gtk.ApplicationWindow):
             self.reveal(f)
 
     def reveal(self, path):
+        if IS_WINDOWS:
+            subprocess.Popen(f'explorer /select,"{os.path.normpath(path)}"')
+            return
         try:
             bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
             bus.call_sync("org.freedesktop.FileManager1", "/org/freedesktop/FileManager1",
@@ -1496,7 +1571,8 @@ class ShortcutRow(Adw.ActionRow):
         if self.binding:
             self.keys.set_accelerator(self.binding.get_string("binding"))
         else:
-            self.set_subtitle("Needs GNOME")
+            self.set_subtitle("On Windows: Start menu › Narenj › Properties › Shortcut key"
+                              if IS_WINDOWS else "Needs GNOME")
             self.set_sensitive(False)
         listen = Gtk.EventControllerKey(propagation_phase=Gtk.PropagationPhase.CAPTURE)
         listen.connect("key-pressed", self._on_key)
@@ -1648,7 +1724,24 @@ class App(Adw.Application):
         if not self.win:
             self.win = Window(self)
             self.first_run()
+            if os.environ.get("NARENJ_SELF_TEST"):
+                self.self_test()
         self.win.present()
+
+    def self_test(self):
+        """NARENJ_SELF_TEST=1: show the wheel and the settings, then quit; CI uses it to check
+        that a build starts. Errors are counted by the excepthook in __main__."""
+        def settings():
+            self.show_settings()
+            GLib.timeout_add(1500, done)
+            return False
+
+        def done():
+            print("self-test: wheel and settings shown", flush=True)
+            self.quit()
+            return False
+
+        GLib.timeout_add(1500, settings)
 
     def first_run(self):
         settings = load_settings()
@@ -1666,4 +1759,11 @@ class App(Adw.Application):
 
 
 if __name__ == "__main__":
-    sys.exit(App().run(sys.argv))
+    errors = []
+    if os.environ.get("NARENJ_SELF_TEST"):
+        def count_errors(*exc, _hook=sys.excepthook):
+            errors.append(exc)
+            _hook(*exc)
+        sys.excepthook = count_errors
+    status = App().run(sys.argv)
+    sys.exit(status or (1 if errors else 0))

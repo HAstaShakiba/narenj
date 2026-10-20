@@ -1,6 +1,6 @@
 # Narenj
 
-A drag-and-drop ffmpeg wheel for GNOME, inspired by [Tangerine](https://tangerineformac.com/) and FanDrop on macOS.
+A drag-and-drop ffmpeg wheel for GNOME and Windows, inspired by [Tangerine](https://tangerineformac.com/) and FanDrop on macOS.
 
 Drag a file onto the wheel and drop it on a wedge: Narenj converts, compresses, trims or otherwise
 processes it with ffmpeg and saves the result next to the original. Everything runs locally.
@@ -75,6 +75,14 @@ narenj --setup                      # once per user: shortcut + extension
 
 Log out and back in once so GNOME Shell loads the extension. Updates then arrive with `apt upgrade`.
 
+### Windows 10 / 11
+
+Download `narenj-<version>-setup.exe` from the [latest release](https://github.com/HAstaShakiba/narenj/releases/latest)
+and run it; it installs for your user without admin rights and brings its own Python, GTK and ffmpeg.
+**Ctrl+Alt+N** opens and closes the wheel (change it in Start menu › Narenj › Properties ›
+Shortcut key). On Windows the wheel stays above other windows and reads Shift, Ctrl and Alt by
+itself, so nothing else needs setting up.
+
 ### Building the package yourself
 
 ```sh
@@ -97,6 +105,9 @@ On Ubuntu 22.04 the package pulls in everything it needs, including `fonts-inter
 The UI uses Apple's San Francisco font when it is installed and otherwise
 [Inter](https://rsms.me/inter/), its closest open counterpart. `fonts/InterVariable.ttf` is
 Inter 4.1, distributed under the SIL Open Font License (see `fonts/LICENSE-Inter-OFL.txt`).
+On Windows it uses Segoe UI. The Windows installer bundles a static ffmpeg build from
+[BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds), which is GPL licensed; its source is
+available from [ffmpeg.org](https://ffmpeg.org/download.html).
 
 ## Development
 
@@ -130,6 +141,7 @@ SIL Open Font License.
 | `gnome-extension/` | Shell helper for GNOME 42-44 |
 | `gnome-extension-45/` | The same helper for GNOME 45+ (ES modules) |
 | `packaging/` | `.deb` build script, launcher and desktop entry |
+| `packaging/windows/` | Windows build (MSYS2) and Inno Setup installer |
 | `install.sh` | Per-user install from the checkout |
 | `tests/` | Wheel contents and every ffmpeg wedge on generated media |
 | `Screenshot/` | The images above |
