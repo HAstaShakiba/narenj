@@ -41,8 +41,8 @@ cd "$SITE"
 mkdir -p pool/main/n/narenj
 cp "$SRC"/dist/*.deb pool/main/n/narenj/
 
-# Narenj is Architecture: all, but apt on a PC asks for binary-amd64, so list it there too
-for arch in all amd64 arm64; do
+# Narenj is Architecture: all, but apt asks for its own arch (and i386 on multiarch PCs), so list it there too
+for arch in all amd64 arm64 i386; do
     dir="dists/stable/main/binary-$arch"
     mkdir -p "$dir"
     apt-ftparchive --arch "$arch" packages pool > "$dir/Packages"
@@ -55,7 +55,7 @@ apt-ftparchive \
     -o APT::FTPArchive::Release::Label="Narenj" \
     -o APT::FTPArchive::Release::Suite="stable" \
     -o APT::FTPArchive::Release::Codename="stable" \
-    -o APT::FTPArchive::Release::Architectures="all amd64 arm64" \
+    -o APT::FTPArchive::Release::Architectures="all amd64 arm64 i386" \
     -o APT::FTPArchive::Release::Components="main" \
     -o APT::FTPArchive::Release::Description="Narenj, a drag-and-drop ffmpeg wheel for GNOME" \
     release dists/stable > Release.tmp
