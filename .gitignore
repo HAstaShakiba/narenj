@@ -1,3 +1,7 @@
 dist/
 __pycache__/
 *.pyc
+.ccache/
+.ffmpeg-build/
+ffmpeg-bin/
+ffmpeg-mac/

@@ -150,7 +150,7 @@ SIL Open Font License.
 | `packaging/windows/` | Windows build (MSYS2) and Inno Setup installer |
 | `Formula/` | Homebrew formula for macOS |
 | `packaging/macos/` | macOS app (PyInstaller) and DMG build |
-| `packaging/build-ffmpeg.sh` | The slim ffmpeg bundled on Windows and macOS |
+| `packaging/build-ffmpeg.sh` | The slim ffmpeg bundled on Windows and macOS (settings in `packaging/*/ffmpeg.sh`) |
 | `install.sh` | Per-user install from the checkout |
 | `tests/` | Wheel contents and every ffmpeg wedge on generated media |
 | `Screenshot/` | The images above |

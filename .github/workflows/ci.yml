@@ -55,16 +55,28 @@ jobs:
             mingw-w64-ucrt-x86_64-libwebp
             mingw-w64-ucrt-x86_64-dav1d
             mingw-w64-ucrt-x86_64-zlib
+            mingw-w64-ucrt-x86_64-ccache
             make
             diffutils
       - uses: actions/cache@v4
         id: ffmpeg-cache
         with:
           path: ffmpeg-bin
-          key: ffmpeg-${{ runner.os }}-${{ hashFiles('packaging/build-ffmpeg.sh') }}
+          key: ffmpeg-${{ runner.os }}-${{ hashFiles('packaging/build-ffmpeg.sh', 'packaging/windows/ffmpeg.sh') }}
+      # ccache keeps compiled objects between ffmpeg builds, so a rebuild only compiles what changed
+      - uses: actions/cache@v4
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: ccache-${{ runner.os }}-
       - name: Build ffmpeg
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
-        run: packaging/windows/report.sh "Windows ffmpeg build" packaging/build-ffmpeg.sh ffmpeg-bin
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+          CCACHE_MAXSIZE: 1G
+          CCACHE_COMPILERCHECK: content  # the toolchain is reinstalled every run, so not by date
+        run: packaging/windows/report.sh "Windows ffmpeg build" packaging/build-ffmpeg.sh ffmpeg-bin packaging/windows/ffmpeg.sh
       - name: Test
         run: PATH="$PWD/ffmpeg-bin:$PATH" packaging/windows/report.sh "Windows tests" python -m unittest discover -s tests -v
       - name: Build
@@ -105,7 +117,7 @@ jobs:
       - name: Install dependencies
         run: |
           brew install gtk4 libadwaita pygobject3 py3cairo librsvg ffmpeg adwaita-icon-theme \
-            x264 libvpx opus lame libvorbis webp dav1d nasm pkgconf
+            x264 libvpx opus lame libvorbis webp dav1d nasm pkgconf ccache
       - name: Find pygobject's Python
         run: |
           py="$(brew deps pygobject3 | grep '^python@' | sort -V | tail -1)"
@@ -127,10 +139,20 @@ jobs:
         id: ffmpeg-cache
         with:
           path: ffmpeg-mac
-          key: ffmpeg-${{ runner.os }}-${{ hashFiles('packaging/build-ffmpeg.sh') }}
+          key: ffmpeg-${{ runner.os }}-${{ hashFiles('packaging/build-ffmpeg.sh', 'packaging/macos/ffmpeg.sh') }}
+      - uses: actions/cache@v4
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: ccache-${{ runner.os }}-
       - name: Build ffmpeg
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
-        run: packaging/windows/report.sh "macOS ffmpeg build" packaging/build-ffmpeg.sh ffmpeg-mac
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+          CCACHE_MAXSIZE: 1G
+          CCACHE_COMPILERCHECK: content
+        run: packaging/windows/report.sh "macOS ffmpeg build" packaging/build-ffmpeg.sh ffmpeg-mac packaging/macos/ffmpeg.sh
       - name: Build the app
         run: |
           v="$([ "$GITHUB_REF_TYPE" = tag ] && echo "${GITHUB_REF_NAME#v}" || echo 0.0.0-dev)"
