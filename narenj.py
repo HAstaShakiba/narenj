@@ -352,6 +352,8 @@ def mac_style_windows():
             objc_send(window, "setHasShadow:", False, argtypes=flag)
             objc_send(window, "setTitlebarAppearsTransparent:", True, argtypes=flag)
             objc_send(window, "setTitleVisibility:", 1, argtypes=[ctypes.c_long])  # NSWindowTitleHidden
+            # the title bar's hairline separator otherwise stays as a line across the top
+            objc_send(window, "setTitlebarSeparatorStyle:", 1, argtypes=[ctypes.c_long])  # ...StyleNone
             for kind in (0, 1, 2):  # close, minimise, zoom
                 button = objc_send(window, "standardWindowButton:", kind, argtypes=[ctypes.c_ulong])
                 if button:
