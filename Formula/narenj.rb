@@ -5,8 +5,8 @@
 class Narenj < Formula
   desc "Drag-and-drop ffmpeg wheel: convert, compress and trim files by dropping them"
   homepage "https://github.com/HAstaShakiba/narenj"
-  url "https://github.com/HAstaShakiba/narenj/archive/refs/tags/v1.2.0.tar.gz"
-  sha256 "87e18bfa0c2e9c7445ada84c9a486b1fa9a1f0525396bafed5d8d9f74a46bbdd"
+  url "https://github.com/HAstaShakiba/narenj/archive/refs/tags/v1.3.0.tar.gz"
+  sha256 "c60e0ffda04c0b60e1cda390526175fc735a4a33b1c2def9780a7412248b2270"
   license "MIT"
   head "https://github.com/HAstaShakiba/narenj.git", branch: "main"
 
