@@ -1,6 +1,6 @@
 # Narenj
 
-A drag-and-drop ffmpeg wheel for GNOME and Windows, inspired by [Tangerine](https://tangerineformac.com/) and FanDrop on macOS.
+A drag-and-drop ffmpeg wheel for GNOME, Windows and macOS, inspired by [Tangerine](https://tangerineformac.com/) and FanDrop on macOS.
 
 Drag a file onto the wheel and drop it on a wedge: Narenj converts, compresses, trims or otherwise
 processes it with ffmpeg and saves the result next to the original. Everything runs locally.
@@ -69,6 +69,18 @@ and run it; it installs for your user without admin rights and brings its own Py
 Shortcut key). On Windows the wheel stays above other windows and reads Shift, Ctrl and Alt by
 itself, so nothing else needs setting up.
 
+### macOS (Homebrew)
+
+```sh
+brew tap hastashakiba/narenj https://github.com/HAstaShakiba/narenj
+brew install narenj
+narenj
+```
+
+Homebrew brings GTK, Python and ffmpeg. While Narenj runs, **Control+Option+N** shows and hides the
+wheel, which floats above other windows on every Space; Shift, Control (or Command) and Option
+switch wheels, also while dragging.
+
 ### Building the package yourself
 
 ```sh
@@ -128,6 +140,7 @@ SIL Open Font License.
 | `gnome-extension-45/` | The same helper for GNOME 45+ (ES modules) |
 | `packaging/` | `.deb` build script, launcher and desktop entry |
 | `packaging/windows/` | Windows build (MSYS2) and Inno Setup installer |
+| `Formula/` | Homebrew formula for macOS |
 | `install.sh` | Per-user install from the checkout |
 | `tests/` | Wheel contents and every ffmpeg wedge on generated media |
 | `Screenshot/` | The images above |

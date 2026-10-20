@@ -1,5 +1,5 @@
 #!/usr/bin/python3.10
-"""Narenj: a drag-and-drop ffmpeg wheel for GNOME and Windows.
+"""Narenj: a drag-and-drop ffmpeg wheel for GNOME, Windows and macOS.
 
 Drop a file on the wheel, pick a wedge, and ffmpeg does the rest.
 Three wheels, like Tangerine/FanDrop: Convert (Shift), Tools (Ctrl), Actions (Alt).
@@ -16,6 +16,7 @@ import tempfile
 import threading
 
 IS_WINDOWS = sys.platform == "win32"
+IS_MAC = sys.platform == "darwin"
 if IS_WINDOWS:
     # The Windows build is a self-contained folder: <root>/bin/pythonw.exe, ffmpeg.exe and GTK's
     # DLLs, <root>/lib for typelibs and gdk-pixbuf loaders. gdk-pixbuf needs absolute loader
@@ -280,6 +281,115 @@ def win32_modifiers():
     return mods
 
 
+def objc_send(receiver, selector, *args, restype=None, argtypes=()):
+    """Message an Objective-C object from ctypes (macOS); enough for a few AppKit calls."""
+    import ctypes
+    import ctypes.util
+    objc = ctypes.cdll.LoadLibrary(ctypes.util.find_library("objc"))
+    ctypes.cdll.LoadLibrary("/System/Library/Frameworks/AppKit.framework/AppKit")
+    objc.sel_registerName.restype = objc.objc_getClass.restype = ctypes.c_void_p
+    objc.sel_registerName.argtypes = objc.objc_getClass.argtypes = [ctypes.c_char_p]
+    if isinstance(receiver, str):
+        receiver = objc.objc_getClass(receiver.encode())
+    send = objc.objc_msgSend
+    send.restype = restype if restype is not None else ctypes.c_void_p
+    send.argtypes = [ctypes.c_void_p, ctypes.c_void_p, *argtypes]
+    return send(receiver, objc.sel_registerName(selector.encode()), *args)
+
+
+def mac_keep_on_top():
+    """Float Narenj's windows above others and on every Space, as GNOME's extension does."""
+    import ctypes
+    try:
+        windows = objc_send(objc_send("NSApplication", "sharedApplication"), "windows")
+        floating, all_spaces = 3, 1 | 256  # NSFloatingWindowLevel; canJoinAllSpaces | fullScreenAuxiliary
+        for i in range(objc_send(windows, "count", restype=ctypes.c_ulong)):
+            window = objc_send(windows, "objectAtIndex:", i, argtypes=[ctypes.c_ulong])
+            objc_send(window, "setLevel:", floating, restype=ctypes.c_void_p, argtypes=[ctypes.c_long])
+            objc_send(window, "setCollectionBehavior:", all_spaces, restype=ctypes.c_void_p,
+                      argtypes=[ctypes.c_ulong])
+    except (OSError, AttributeError, TypeError) as e:
+        if DEBUG:
+            print("could not keep the wheel on top:", e, flush=True)
+    return False
+
+
+def mac_modifiers():
+    """Shift/Control/Option held right now, as Gdk masks; Command counts as Control, like
+    Tangerine's Command wheel."""
+    import ctypes
+    flags = objc_send("NSEvent", "modifierFlags", restype=ctypes.c_ulong)
+    mods = 0
+    if flags & (1 << 17):
+        mods |= int(Gdk.ModifierType.SHIFT_MASK)
+    if flags & ((1 << 18) | (1 << 20)):
+        mods |= int(Gdk.ModifierType.CONTROL_MASK)
+    if flags & (1 << 19):
+        mods |= int(Gdk.ModifierType.ALT_MASK)
+    return mods
+
+
+class MacHotKey:
+    """Control+Option+N while Narenj runs, through Carbon's RegisterEventHotKey (macOS has no
+    other way for an app to listen to a global shortcut)."""
+
+    def __init__(self, callback):
+        import ctypes
+        carbon = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/Carbon.framework/Carbon")
+        carbon.GetApplicationEventTarget.restype = ctypes.c_void_p
+
+        class EventTypeSpec(ctypes.Structure):
+            _fields_ = [("eventClass", ctypes.c_uint32), ("eventKind", ctypes.c_uint32)]
+
+        class EventHotKeyID(ctypes.Structure):
+            _fields_ = [("signature", ctypes.c_uint32), ("id", ctypes.c_uint32)]
+
+        def fourcc(code):
+            return int.from_bytes(code.encode(), "big")
+
+        handler_type = ctypes.CFUNCTYPE(ctypes.c_int32, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
+        self._handler = handler_type(lambda *_: (GLib.idle_add(callback), 0)[1])  # kept alive with self
+        target = carbon.GetApplicationEventTarget()
+        spec = EventTypeSpec(fourcc("keyb"), 5)  # kEventClassKeyboard, kEventHotKeyPressed
+        carbon.InstallEventHandler.argtypes = [ctypes.c_void_p, handler_type, ctypes.c_uint32,
+                                               ctypes.POINTER(EventTypeSpec), ctypes.c_void_p, ctypes.c_void_p]
+        carbon.InstallEventHandler(target, self._handler, 1, ctypes.byref(spec), None, None)
+        self._ref = ctypes.c_void_p()
+        carbon.RegisterEventHotKey.argtypes = [ctypes.c_uint32, ctypes.c_uint32, EventHotKeyID, ctypes.c_void_p,
+                                               ctypes.c_uint32, ctypes.POINTER(ctypes.c_void_p)]
+        n_key, control_option = 45, 0x1000 | 0x0800  # kVK_ANSI_N; controlKey | optionKey
+        carbon.RegisterEventHotKey(n_key, control_option, EventHotKeyID(fourcc("nrnj"), 1), target, 0,
+                                   ctypes.byref(self._ref))
+
+
+class MacInstance:
+    """One Narenj per user on macOS, where GApplication has no D-Bus to find a running copy:
+    a second launch sends its request over a Unix socket and exits."""
+
+    PATH = os.path.join(GLib.get_user_runtime_dir(), "narenj.sock")
+
+    @classmethod
+    def send(cls, message):
+        """True if a running Narenj took the message."""
+        try:
+            conn = Gio.SocketClient().connect(Gio.UnixSocketAddress.new(cls.PATH), None)
+        except GLib.Error:
+            return False
+        conn.get_output_stream().write_all(message.encode() + b"\n", None)
+        conn.close(None)
+        return True
+
+    def __init__(self, on_message):
+        if os.path.exists(self.PATH):
+            os.remove(self.PATH)  # left by a copy that did not quit cleanly; send() just failed
+        self.service = Gio.SocketService()
+        self.service.add_address(Gio.UnixSocketAddress.new(self.PATH), Gio.SocketType.STREAM,
+                                 Gio.SocketProtocol.DEFAULT, None)
+        self.service.connect("incoming", lambda _s, conn, _src: on_message(
+            conn.get_input_stream().read_bytes(256, None).get_data().decode().strip()) or False)
+        self.service.start()
+
+
 def _gsettings(schema, path=None):
     source = Gio.SettingsSchemaSource.get_default()
     if not source or not source.lookup(schema, True):
@@ -442,7 +552,7 @@ def human_size(n):
 
 # BlinkMacSystemFont is Apple's San Francisco, which only ships (and is only licensed) on
 # Apple devices; use it if someone has it, else Inter, the open font closest to it
-FONT = "SF Pro Text, Inter Variable, Inter, Segoe UI Variable Text, Segoe UI, Sans"
+FONT = "SF Pro Text, .AppleSystemUIFont, Inter Variable, Inter, Segoe UI Variable Text, Segoe UI, Helvetica Neue, Sans"
 
 
 def _rgb(cr, c, a=1.0):
@@ -1109,8 +1219,8 @@ class Wheel(Gtk.DrawingArea):
             self._key_poll = GLib.timeout_add(70, self._poll_keys)
 
     def _poll_keys(self):
-        if IS_WINDOWS:
-            self._apply_modifiers(win32_modifiers())
+        if IS_WINDOWS or IS_MAC:
+            self._apply_modifiers(win32_modifiers() if IS_WINDOWS else mac_modifiers())
             return GLib.SOURCE_CONTINUE
         Gio.bus_get_sync(Gio.BusType.SESSION, None).call(
             "org.gnome.Shell", "/ir/narenj/Shell", "ir.narenj.Shell", "GetModifiers", None,
@@ -1261,6 +1371,8 @@ class Window(Gtk.ApplicationWindow):
         self.connect("map", lambda *_: GLib.idle_add(self.wheel.update_input_region))
         if IS_WINDOWS:
             self.connect("map", lambda *_: GLib.idle_add(win32_keep_on_top, self))
+        elif IS_MAC:
+            self.connect("map", lambda *_: GLib.idle_add(mac_keep_on_top))
 
         keys = Gtk.EventControllerKey()
         keys.connect("key-pressed", self._on_key)
@@ -1486,6 +1598,9 @@ class Window(Gtk.ApplicationWindow):
         if IS_WINDOWS:
             subprocess.Popen(f'explorer /select,"{os.path.normpath(path)}"')
             return
+        if IS_MAC:
+            subprocess.Popen(["open", "-R", path])
+            return
         try:
             bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
             bus.call_sync("org.freedesktop.FileManager1", "/org/freedesktop/FileManager1",
@@ -1576,8 +1691,8 @@ class ShortcutRow(Adw.ActionRow):
         if self.binding:
             self.keys.set_accelerator(self.binding.get_string("binding"))
         else:
-            self.set_subtitle("On Windows: Start menu › Narenj › Properties › Shortcut key"
-                              if IS_WINDOWS else "Needs GNOME")
+            self.set_subtitle("On Windows: Start menu › Narenj › Properties › Shortcut key" if IS_WINDOWS
+                              else "On macOS it is Control+Option+N" if IS_MAC else "Needs GNOME")
             self.set_sensitive(False)
         listen = Gtk.EventControllerKey(propagation_phase=Gtk.PropagationPhase.CAPTURE)
         listen.connect("key-pressed", self._on_key)
@@ -1699,6 +1814,8 @@ class App(Adw.Application):
             if "extension" in changed:
                 print("Log out and back in once so GNOME Shell loads the always-on-top extension.")
             return 0
+        if IS_MAC and MacInstance.send("toggle" if options.contains("toggle") else "show"):
+            return 0
         if options.contains("toggle"):
             self.register(None)
             if self.get_is_remote():
@@ -1709,6 +1826,9 @@ class App(Adw.Application):
     def toggle(self):
         if not self.win or not self.win.get_visible():
             self.do_activate()
+        elif IS_MAC:
+            # the macOS shortcut lives inside Narenj, so hide rather than quit
+            self.win.set_visible(False)
         elif self.win.jobs:
             # keep ffmpeg running in the background; the next toggle brings the wheel back
             self.win.set_visible(False)
@@ -1717,6 +1837,12 @@ class App(Adw.Application):
 
     def do_startup(self):
         Adw.Application.do_startup(self)
+        if IS_MAC:
+            self.mac_instance = MacInstance(lambda msg: self.toggle() if msg == "toggle" else self.do_activate())
+            try:
+                self.mac_hotkey = MacHotKey(self.toggle)
+            except (OSError, AttributeError) as e:
+                print("Narenj: no global shortcut:", e, file=sys.stderr)
         Gtk.Window.set_default_icon_name(APP_ID)
         css = Gtk.CssProvider()
         css.load_from_data(CSS.encode())

@@ -96,12 +96,38 @@ jobs:
           name: windows-installer
           path: dist/narenj-*-setup.exe
 
+  # macOS: the tests and a start-up check on Homebrew's GTK and Python, then the Homebrew
+  # formula installed from this checkout.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: brew install gtk4 libadwaita pygobject3 py3cairo librsvg ffmpeg adwaita-icon-theme
+      - name: Find pygobject's Python
+        run: |
+          py="$(brew deps pygobject3 | grep '^python@' | sort -V | tail -1)"
+          echo "PYTHON=$(brew --prefix "$py")/libexec/bin/python" >> "$GITHUB_ENV"
+      - name: Test
+        run: packaging/windows/report.sh "macOS tests" "$PYTHON" -m unittest discover -s tests -v
+      - name: Self-test
+        timeout-minutes: 3
+        run: |
+          NARENJ_SELF_TEST=1 packaging/windows/report.sh "macOS self-test" "$PYTHON" narenj.py
+          grep -q "self-test" report.log
+      - name: Homebrew formula
+        run: |
+          brew tap-new --no-git local/narenj
+          cp Formula/narenj.rb "$(brew --repository local/narenj)/Formula/"
+          packaging/windows/report.sh "Homebrew formula" brew install --formula local/narenj/narenj
+          packaging/windows/report.sh "Homebrew formula test" brew test local/narenj/narenj
+
   # A pushed tag like v1.0.1 builds that version's .deb and publishes it, with the Windows
-  # installer, as a GitHub release.
+  # installer, as a GitHub release, then points the Homebrew formula at it.
   # The signed apt repository is still published locally (packaging/publish-apt.sh), since
   # its signing key never leaves the maintainer's machine.
   release:
-    needs: [test, windows]
+    needs: [test, windows, macos]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-22.04
     permissions:
@@ -120,3 +146,12 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" dist/*.deb dist/narenj-*-setup.exe \
             --verify-tag --title "Narenj ${GITHUB_REF_NAME#v}" --generate-notes
+      - name: Point the Homebrew formula at this release
+        run: |
+          url="https://github.com/$GITHUB_REPOSITORY/archive/refs/tags/$GITHUB_REF_NAME.tar.gz"
+          sha="$(curl -fsSL "$url" | sha256sum | cut -d' ' -f1)"
+          git fetch -q origin main && git checkout -q -B main origin/main
+          sed -i -e "s|^  url \".*\"|  url \"$url\"|" -e "s|^  sha256 \".*\"|  sha256 \"$sha\"|" Formula/narenj.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -qam "Homebrew: narenj ${GITHUB_REF_NAME#v}" && git push -q origin main
