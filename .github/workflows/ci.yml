@@ -112,6 +112,8 @@ jobs:
   # and a self-contained Narenj.app (Apple Silicon) with the slim ffmpeg, packed into a DMG.
   macos:
     runs-on: macos-latest
+    permissions:
+      contents: write  # to publish the app's screenshot on the ci-screens branch
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
@@ -160,8 +162,23 @@ jobs:
       - name: Self-test the app
         timeout-minutes: 3
         run: |
-          NARENJ_SELF_TEST=1 packaging/windows/report.sh "macOS app self-test" dist/Narenj.app/Contents/MacOS/Narenj
+          NARENJ_SELF_TEST=1 NARENJ_SELF_TEST_SHOT="$PWD/macos-wheel.png" \
+            packaging/windows/report.sh "macOS app self-test" dist/Narenj.app/Contents/MacOS/Narenj
           grep -q "self-test" report.log
+      # a screenshot of the running app, readable at
+      # https://raw.githubusercontent.com/<repo>/ci-screens/macos-wheel.png without signing in
+      - name: Publish the screenshot
+        if: always() && github.event_name == 'push'
+        run: |
+          [ -f macos-wheel.png ] || exit 0
+          mkdir shots && cp macos-wheel.png shots/ && cd shots
+          git init -q -b ci-screens
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "macOS screenshot of $GITHUB_SHA" --allow-empty
+          git add macos-wheel.png
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q --amend -m "macOS screenshot of $GITHUB_SHA"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/$GITHUB_REPOSITORY" ci-screens
       - uses: actions/upload-artifact@v4
         with:
           name: macos-dmg

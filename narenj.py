@@ -331,20 +331,34 @@ def objc_send(receiver, selector, *args, restype=None, argtypes=()):
     return send(receiver, objc.sel_registerName(selector.encode()), *args)
 
 
-def mac_keep_on_top():
-    """Float Narenj's windows above others and on every Space, as GNOME's extension does."""
+def mac_style_windows():
+    """Float Narenj's windows above others and on every Space, as GNOME's extension does, and
+    strip the wheel's NSWindow down to its drawing: AppKit otherwise gives every window an opaque
+    background, a rectangular shadow and title-bar buttons, which showed as a box around the wheel."""
     import ctypes
+    flag = [ctypes.c_bool]
     try:
         windows = objc_send(objc_send("NSApplication", "sharedApplication"), "windows")
         floating, all_spaces = 3, 1 | 256  # NSFloatingWindowLevel; canJoinAllSpaces | fullScreenAuxiliary
         for i in range(objc_send(windows, "count", restype=ctypes.c_ulong)):
             window = objc_send(windows, "objectAtIndex:", i, argtypes=[ctypes.c_ulong])
-            objc_send(window, "setLevel:", floating, restype=ctypes.c_void_p, argtypes=[ctypes.c_long])
-            objc_send(window, "setCollectionBehavior:", all_spaces, restype=ctypes.c_void_p,
-                      argtypes=[ctypes.c_ulong])
+            objc_send(window, "setLevel:", floating, argtypes=[ctypes.c_long])
+            objc_send(window, "setCollectionBehavior:", all_spaces, argtypes=[ctypes.c_ulong])
+            title = objc_send(objc_send(window, "title"), "UTF8String", restype=ctypes.c_char_p) or b""
+            if title.decode() != "Narenj":
+                continue  # the settings and file dialogs keep their normal look
+            objc_send(window, "setOpaque:", False, argtypes=flag)
+            objc_send(window, "setBackgroundColor:", objc_send("NSColor", "clearColor"), argtypes=[ctypes.c_void_p])
+            objc_send(window, "setHasShadow:", False, argtypes=flag)
+            objc_send(window, "setTitlebarAppearsTransparent:", True, argtypes=flag)
+            objc_send(window, "setTitleVisibility:", 1, argtypes=[ctypes.c_long])  # NSWindowTitleHidden
+            for kind in (0, 1, 2):  # close, minimise, zoom
+                button = objc_send(window, "standardWindowButton:", kind, argtypes=[ctypes.c_ulong])
+                if button:
+                    objc_send(button, "setHidden:", True, argtypes=flag)
     except (OSError, AttributeError, TypeError) as e:
         if DEBUG:
-            print("could not keep the wheel on top:", e, flush=True)
+            print("could not style the wheel window:", e, flush=True)
     return False
 
 
@@ -1386,6 +1400,7 @@ CSS = """
 window.narenj-float, window.narenj-float.background {
   background: none; box-shadow: none; border-radius: 0;
 }
+window.narenj-float decoration { background: none; box-shadow: none; border: none; }
 """
 
 
@@ -1406,7 +1421,9 @@ class Window(Gtk.ApplicationWindow):
         if IS_WINDOWS:
             self.connect("map", lambda *_: GLib.idle_add(win32_keep_on_top, self))
         elif IS_MAC:
-            self.connect("map", lambda *_: GLib.idle_add(mac_keep_on_top))
+            # again a moment later too, in case GTK touches the NSWindow while it settles
+            self.connect("map", lambda *_: (GLib.idle_add(mac_style_windows),
+                                            GLib.timeout_add(300, mac_style_windows)))
 
         keys = Gtk.EventControllerKey()
         keys.connect("key-pressed", self._on_key)
@@ -1897,6 +1914,9 @@ class App(Adw.Application):
         """NARENJ_SELF_TEST=1: show the wheel and the settings, then quit; CI uses it to check
         that a build starts. Errors are counted by the excepthook in __main__."""
         def settings():
+            shot = os.environ.get("NARENJ_SELF_TEST_SHOT")
+            if shot and IS_MAC:  # CI publishes this, so the window can be checked without a Mac
+                subprocess.run(["screencapture", "-x", shot], check=False)
             self.show_settings()
             GLib.timeout_add(1500, done)
             return False
