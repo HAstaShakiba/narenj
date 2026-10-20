@@ -56,9 +56,9 @@ jobs:
           mv ffmpeg/*/bin ffmpeg-bin
           cp ffmpeg/*/LICENSE.txt ffmpeg-bin/ || true
       - name: Test
-        run: PATH="$PWD/ffmpeg-bin:$PATH" python -m unittest discover -s tests -v
+        run: PATH="$PWD/ffmpeg-bin:$PATH" packaging/windows/report.sh "Windows tests" python -m unittest discover -s tests -v
       - name: Build
-        run: packaging/windows/build.sh ffmpeg-bin
+        run: packaging/windows/report.sh "Windows build" packaging/windows/build.sh ffmpeg-bin
       - name: Self-test the build outside MSYS2
         shell: pwsh
         timeout-minutes: 3
@@ -68,7 +68,12 @@ jobs:
           $p = Start-Process "$app\bin\python.exe" -ArgumentList "$app\share\narenj\narenj.py" `
             -PassThru -NoNewWindow -Wait -RedirectStandardOutput out.txt -RedirectStandardError err.txt
           Get-Content out.txt, err.txt
-          if ($p.ExitCode -ne 0 -or -not (Select-String -Quiet "self-test" out.txt)) { exit 1 }
+          if ($p.ExitCode -ne 0 -or -not (Select-String -Quiet "self-test" out.txt)) {
+            $log = ((Get-Content out.txt, err.txt -Raw) -join "`n")
+            if ($log.Length -gt 3500) { $log = $log.Substring($log.Length - 3500) }
+            Write-Output ("::error title=Windows self-test::" + ($log -replace "%", "%25" -replace "`r", "" -replace "`n", "%0A"))
+            exit 1
+          }
       - name: Installer
         shell: pwsh
         run: |
