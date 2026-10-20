@@ -350,8 +350,9 @@ def mac_style_windows():
                 print(f"macOS window {title.decode()!r} styleMask={style:#x}", flush=True)
             if title.decode() != "Narenj":
                 continue  # the settings and file dialogs keep their normal look
-            # content under the (now invisible) title bar, so the bar has no edge left to draw
-            objc_send(window, "setStyleMask:", style | (1 << 15), argtypes=[ctypes.c_ulong])  # fullSizeContentView
+            # borderless: a titled window keeps a hairline under its title bar even when the bar is
+            # transparent (GTK's own popup windows are borderless the same way)
+            objc_send(window, "setStyleMask:", 1 << 15, argtypes=[ctypes.c_ulong])  # fullSizeContentView only
             objc_send(window, "setOpaque:", False, argtypes=flag)
             objc_send(window, "setBackgroundColor:", objc_send("NSColor", "clearColor"), argtypes=[ctypes.c_void_p])
             objc_send(window, "setHasShadow:", False, argtypes=flag)
