@@ -162,9 +162,10 @@ jobs:
       - name: Self-test the app
         timeout-minutes: 3
         run: |
-          NARENJ_SELF_TEST=1 NARENJ_SELF_TEST_SHOT="$PWD/macos-wheel.png" \
+          NARENJ_SELF_TEST=1 NARENJ_DEBUG=1 NARENJ_SELF_TEST_SHOT="$PWD/macos-wheel.png" \
             packaging/windows/report.sh "macOS app self-test" dist/Narenj.app/Contents/MacOS/Narenj
           grep -q "self-test" report.log
+          cp report.log macos-self-test.log
       # a screenshot of the running app, readable at
       # https://raw.githubusercontent.com/<repo>/ci-screens/macos-wheel.png without signing in
       - name: Publish the screenshot
@@ -172,10 +173,11 @@ jobs:
         run: |
           [ -f macos-wheel.png ] || exit 0
           mkdir shots && cp macos-wheel.png shots/ && cd shots
+          cp ../macos-self-test.log . 2>/dev/null || true
           git init -q -b ci-screens
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
             commit -qm "macOS screenshot of $GITHUB_SHA" --allow-empty
-          git add macos-wheel.png
+          git add macos-wheel.png macos-self-test.log 2>/dev/null || git add macos-wheel.png
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
             commit -q --amend -m "macOS screenshot of $GITHUB_SHA"
           git push -qf "https://x-access-token:${{ github.token }}@github.com/$GITHUB_REPOSITORY" ci-screens

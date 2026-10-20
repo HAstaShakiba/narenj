@@ -345,8 +345,13 @@ def mac_style_windows():
             objc_send(window, "setLevel:", floating, argtypes=[ctypes.c_long])
             objc_send(window, "setCollectionBehavior:", all_spaces, argtypes=[ctypes.c_ulong])
             title = objc_send(objc_send(window, "title"), "UTF8String", restype=ctypes.c_char_p) or b""
+            style = objc_send(window, "styleMask", restype=ctypes.c_ulong)
+            if DEBUG:
+                print(f"macOS window {title.decode()!r} styleMask={style:#x}", flush=True)
             if title.decode() != "Narenj":
                 continue  # the settings and file dialogs keep their normal look
+            # content under the (now invisible) title bar, so the bar has no edge left to draw
+            objc_send(window, "setStyleMask:", style | (1 << 15), argtypes=[ctypes.c_ulong])  # fullSizeContentView
             objc_send(window, "setOpaque:", False, argtypes=flag)
             objc_send(window, "setBackgroundColor:", objc_send("NSColor", "clearColor"), argtypes=[ctypes.c_void_p])
             objc_send(window, "setHasShadow:", False, argtypes=flag)
