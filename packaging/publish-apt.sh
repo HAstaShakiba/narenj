@@ -68,6 +68,7 @@ touch .nojekyll  # serve dists/ and pool/ as plain files
 # the newest version in the pool; its GitHub release carries the Windows installer
 VERSION="$(ls pool/main/n/narenj | sed -n 's/^narenj_\(.*\)_all\.deb$/\1/p' | sort -V | tail -1)"
 SETUP="https://github.com/HAstaShakiba/narenj/releases/download/v$VERSION/narenj-$VERSION-setup.exe"
+DMG="https://github.com/HAstaShakiba/narenj/releases/download/v$VERSION/narenj-$VERSION-macos.dmg"
 
 cat > index.html <<HTML
 <!doctype html>
@@ -78,7 +79,7 @@ pre{background:#f4f4f5;padding:1rem;border-radius:8px;overflow-x:auto}
 .button{display:inline-block;background:#f25c1f;color:#fff;padding:.6rem 1.2rem;border-radius:8px;
 text-decoration:none;font-weight:600}</style></head>
 <body><h1>Narenj</h1>
-<p>A drag-and-drop ffmpeg wheel for GNOME and Windows. Latest version: $VERSION.
+<p>A drag-and-drop ffmpeg wheel for GNOME, Windows and macOS. Latest version: $VERSION.
 Source: <a href="https://github.com/HAstaShakiba/narenj">github.com/HAstaShakiba/narenj</a></p>
 <h2>Install on Windows 10 / 11</h2>
 <p><a class="button" href="$SETUP">Download narenj-$VERSION-setup.exe</a></p>
@@ -86,6 +87,14 @@ Source: <a href="https://github.com/HAstaShakiba/narenj">github.com/HAstaShakiba
 GTK and ffmpeg. Press <b>Ctrl+Alt+N</b> to open the wheel and again to close it; change the keys in
 Start menu &rsaquo; Narenj &rsaquo; Properties &rsaquo; Shortcut key.
 Older versions are on the <a href="https://github.com/HAstaShakiba/narenj/releases">releases page</a>.</p>
+<h2>Install on macOS</h2>
+<p><a class="button" href="$DMG">Download narenj-$VERSION-macos.dmg</a> (Apple Silicon)</p>
+<p>Open it and drag Narenj to Applications. The app is not signed with an Apple Developer ID, so
+the first time open <b>System Settings &rsaquo; Privacy &amp; Security</b> and click
+<b>Open Anyway</b>. <b>Control+Option+N</b> shows and hides the wheel. On Intel Macs, or to get
+updates through Homebrew:</p>
+<pre>brew tap hastashakiba/narenj https://github.com/HAstaShakiba/narenj
+brew install narenj</pre>
 <h2>Install on Ubuntu / Debian</h2>
 <pre>sudo install -d -m 0755 /etc/apt/keyrings
 curl -fsSL $URL/narenj-archive-keyring.gpg | sudo tee /etc/apt/keyrings/narenj.gpg &gt;/dev/null
