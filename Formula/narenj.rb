@@ -39,10 +39,11 @@ class Narenj < Formula
   end
 
   test do
-    # brew test runs without a window server, so check the libraries load rather than start the UI
+    # brew test has no window server, and even importing Gtk connects to it on macOS; check the
+    # typelibs are there and load librsvg, which needs no display
     check = "import gi; [gi.require_version(n, v) for n, v in " \
             "(('Gtk', '4.0'), ('Adw', '1'), ('Rsvg', '2.0'))]; " \
-            "from gi.repository import Adw, Gtk, Rsvg; print('ok')"
+            "from gi.repository import Rsvg; print('ok')"
     assert_equal "ok", shell_output("#{python.opt_libexec}/bin/python -c \"#{check}\"").strip
     assert_path_exists libexec/"narenj.py"
   end
