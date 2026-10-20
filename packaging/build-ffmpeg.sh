@@ -21,7 +21,10 @@ cd "$WORK/ffmpeg-$VERSION"
 EXTRA=()
 if [ "$(uname -s)" = Darwin ]; then
     # @rpath names, so ffmpeg finds its dylibs next to itself and the app bundler can relocate them
-    EXTRA=(--install-name-dir='@rpath' --extra-ldexeflags='-Wl,-rpath,@loader_path')
+    # Homebrew's lame ships no pkg-config file, so point the compiler at Homebrew's prefix too
+    BREW="$(brew --prefix)"
+    EXTRA=(--install-name-dir='@rpath' --extra-ldexeflags='-Wl,-rpath,@loader_path'
+           --extra-cflags="-I$BREW/include" --extra-ldflags="-L$BREW/lib")
 fi
 
 ./configure --prefix="$WORK/install" "${EXTRA[@]}" \
