@@ -61,10 +61,10 @@ jobs:
         id: ffmpeg-cache
         with:
           path: ffmpeg-bin
-          key: ffmpeg-${{ hashFiles('packaging/windows/build-ffmpeg.sh') }}
+          key: ffmpeg-${{ runner.os }}-${{ hashFiles('packaging/build-ffmpeg.sh') }}
       - name: Build ffmpeg
         if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
-        run: packaging/windows/report.sh "Windows ffmpeg build" packaging/windows/build-ffmpeg.sh ffmpeg-bin
+        run: packaging/windows/report.sh "Windows ffmpeg build" packaging/build-ffmpeg.sh ffmpeg-bin
       - name: Test
         run: PATH="$PWD/ffmpeg-bin:$PATH" packaging/windows/report.sh "Windows tests" python -m unittest discover -s tests -v
       - name: Build
@@ -96,14 +96,16 @@ jobs:
           name: windows-installer
           path: dist/narenj-*-setup.exe
 
-  # macOS: the tests and a start-up check on Homebrew's GTK and Python, then the Homebrew
-  # formula installed from this checkout.
+  # macOS: the tests and a start-up check on Homebrew's GTK and Python, the Homebrew formula,
+  # and a self-contained Narenj.app (Apple Silicon) with the slim ffmpeg, packed into a DMG.
   macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: brew install gtk4 libadwaita pygobject3 py3cairo librsvg ffmpeg adwaita-icon-theme
+        run: |
+          brew install gtk4 libadwaita pygobject3 py3cairo librsvg ffmpeg adwaita-icon-theme \
+            x264 libvpx opus lame libvorbis webp dav1d nasm pkgconf
       - name: Find pygobject's Python
         run: |
           py="$(brew deps pygobject3 | grep '^python@' | sort -V | tail -1)"
@@ -121,6 +123,27 @@ jobs:
           cp Formula/narenj.rb "$(brew --repository local/narenj)/Formula/"
           packaging/windows/report.sh "Homebrew formula" brew install --formula local/narenj/narenj
           packaging/windows/report.sh "Homebrew formula test" brew test local/narenj/narenj
+      - uses: actions/cache@v4
+        id: ffmpeg-cache
+        with:
+          path: ffmpeg-mac
+          key: ffmpeg-${{ runner.os }}-${{ hashFiles('packaging/build-ffmpeg.sh') }}
+      - name: Build ffmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: packaging/windows/report.sh "macOS ffmpeg build" packaging/build-ffmpeg.sh ffmpeg-mac
+      - name: Build the app
+        run: |
+          v="$([ "$GITHUB_REF_TYPE" = tag ] && echo "${GITHUB_REF_NAME#v}" || echo 0.0.0-dev)"
+          packaging/windows/report.sh "macOS app build" packaging/macos/build-app.sh "$PYTHON" ffmpeg-mac "$v"
+      - name: Self-test the app
+        timeout-minutes: 3
+        run: |
+          NARENJ_SELF_TEST=1 packaging/windows/report.sh "macOS app self-test" dist/Narenj.app/Contents/MacOS/Narenj
+          grep -q "self-test" report.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: dist/narenj-*-macos.dmg
 
   # A pushed tag like v1.0.1 builds that version's .deb and publishes it, with the Windows
   # installer, as a GitHub release, then points the Homebrew formula at it.
@@ -140,11 +163,15 @@ jobs:
         with:
           name: windows-installer
           path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-dmg
+          path: dist
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*.deb dist/narenj-*-setup.exe \
+          gh release create "$GITHUB_REF_NAME" dist/*.deb dist/narenj-*-setup.exe dist/narenj-*-macos.dmg \
             --verify-tag --title "Narenj ${GITHUB_REF_NAME#v}" --generate-notes
       - name: Point the Homebrew formula at this release
         run: |

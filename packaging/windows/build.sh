@@ -5,7 +5,7 @@
 #
 #   packaging/windows/build.sh <ffmpeg-dir>
 #
-# <ffmpeg-dir> holds ffmpeg.exe, ffprobe.exe and their DLLs (packaging/windows/build-ffmpeg.sh).
+# <ffmpeg-dir> holds ffmpeg.exe, ffprobe.exe and their DLLs (packaging/build-ffmpeg.sh).
 #
 # The folder mirrors the MSYS2 prefix (bin/, lib/, share/) because GLib, GObject
 # introspection and Python all find their data relative to the DLL or executable.

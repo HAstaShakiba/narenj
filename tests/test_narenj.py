@@ -39,6 +39,17 @@ class WheelTest(unittest.TestCase):
             open(first, "w").close()
             self.assertNotEqual(first, n.output_path(src, mp3, n.VIDEO))
 
+    def test_wedges_needing_a_missing_encoder_are_hidden(self):
+        saved = n._encoders
+        try:
+            n._encoders = {"libx264", "aac"}  # an ffmpeg without libwebp, libvpx, ...
+            ids = [a.id for a in n.wheel_items(n.CONVERT, n.VIDEO, "mkv")]
+            self.assertIn("mp4", ids)
+            self.assertNotIn("webp", ids)
+            self.assertNotIn("webm", ids)
+        finally:
+            n._encoders = saved
+
     def test_svg_tools_write_png(self):
         rotate = next(a for a in n.WHEELS[n.TOOLS] if a.id == "rotate")
         self.assertTrue(n.output_path("/tmp/icon.svg", rotate, n.IMAGE).endswith(".png"))

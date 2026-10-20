@@ -31,6 +31,10 @@ if IS_WINDOWS:
         os.environ["GDK_PIXBUF_MODULE_FILE"] = _cache
         os.environ["PATH"] = os.path.join(_ROOT, "bin") + os.pathsep + os.environ.get("PATH", "")
 
+if getattr(sys, "frozen", False):
+    # the macOS app (PyInstaller): ffmpeg and ffprobe are bundled next to Narenj's libraries
+    os.environ["PATH"] = os.path.join(sys._MEIPASS, "ffmpeg") + os.pathsep + os.environ.get("PATH", "")
+
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -197,8 +201,38 @@ WHEELS = {
 AUDIO_ONLY_IDS = {"mp3", "m4a", "wav", "flac", "ogg", "opus", "mute", "normalize", "mono", "srt"}
 
 
+_encoders = None
+
+
+def available_encoders():
+    """Encoders the ffmpeg in use was built with; empty if that cannot be told."""
+    global _encoders
+    if _encoders is None:
+        _encoders = set()
+        try:
+            out = subprocess.run([FFMPEG, "-hide_banner", "-encoders"], capture_output=True, text=True,
+                                 timeout=15, **NO_CONSOLE).stdout if FFMPEG else ""
+        except (OSError, subprocess.TimeoutExpired):
+            out = ""
+        for line in out.splitlines():
+            flags, _, rest = line.strip().partition(" ")
+            if len(flags) == 6 and flags[0] in "VAS" and rest:
+                _encoders.add(rest.split()[0])
+    return _encoders
+
+
+def encoders_needed(args):
+    return {args[i + 1] for i, arg in enumerate(args[:-1]) if arg in ("-c:v", "-c:a", "-c:s") and args[i + 1] != "copy"}
+
+
+def can_run(action, kind):
+    """False when the wedge names an encoder this ffmpeg lacks (Homebrew's has no libwebp, say)."""
+    encoders = available_encoders()
+    return action.handler is not None or not encoders or encoders_needed(action.spec[kind][1]) <= encoders
+
+
 def wheel_items(mode, kind, ext):
-    items = [a for a in WHEELS[mode] if a.accepts(kind)]
+    items = [a for a in WHEELS[mode] if a.accepts(kind) and can_run(a, kind)]
     if mode == CONVERT:
         items = [a for a in items if a.id != ext]
     if ext == "gif":

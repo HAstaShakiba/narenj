@@ -69,6 +69,14 @@ and run it; it installs for your user without admin rights and brings its own Py
 Shortcut key). On Windows the wheel stays above other windows and reads Shift, Ctrl and Alt by
 itself, so nothing else needs setting up.
 
+### macOS app (Apple Silicon)
+
+Download `narenj-<version>-macos.dmg` from the [latest release](https://github.com/HAstaShakiba/narenj/releases/latest),
+open it and drag Narenj to Applications. The app is not signed with an Apple Developer ID, so the
+first time macOS says it cannot verify it: open **System Settings › Privacy & Security** and click
+**Open Anyway** (or run `xattr -dr com.apple.quarantine /Applications/Narenj.app`). Intel Macs use
+Homebrew below.
+
 ### macOS (Homebrew)
 
 ```sh
@@ -103,8 +111,8 @@ On Ubuntu 22.04 the package pulls in everything it needs, including `fonts-inter
 The UI uses Apple's San Francisco font when it is installed and otherwise
 [Inter](https://rsms.me/inter/), its closest open counterpart. `fonts/InterVariable.ttf` is
 Inter 4.1, distributed under the SIL Open Font License (see `fonts/LICENSE-Inter-OFL.txt`).
-On Windows it uses Segoe UI. The Windows installer bundles FFmpeg 8.1.3, built from the
-[ffmpeg.org](https://ffmpeg.org/download.html) sources by `packaging/windows/build-ffmpeg.sh` with
+On Windows it uses Segoe UI. The Windows installer and the macOS app bundle FFmpeg 8.1.3, built from the
+[ffmpeg.org](https://ffmpeg.org/download.html) sources by `packaging/build-ffmpeg.sh` with
 x264, libvpx, Opus, LAME, Vorbis, libwebp and dav1d; that build is GPL licensed.
 
 ## Development
@@ -141,6 +149,8 @@ SIL Open Font License.
 | `packaging/` | `.deb` build script, launcher and desktop entry |
 | `packaging/windows/` | Windows build (MSYS2) and Inno Setup installer |
 | `Formula/` | Homebrew formula for macOS |
+| `packaging/macos/` | macOS app (PyInstaller) and DMG build |
+| `packaging/build-ffmpeg.sh` | The slim ffmpeg bundled on Windows and macOS |
 | `install.sh` | Per-user install from the checkout |
 | `tests/` | Wheel contents and every ffmpeg wedge on generated media |
 | `Screenshot/` | The images above |
