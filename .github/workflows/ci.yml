@@ -47,8 +47,11 @@ jobs:
             unzip
       - name: Fetch ffmpeg
         run: |
-          curl -fsSL -o ffmpeg.zip \
-            https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-gpl-7.1.zip
+          # newest stable static build (BtbN keeps only the last few release branches)
+          url=$(curl -fsSL https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/tags/latest \
+            | python -c "import json,sys,re; a=[x['browser_download_url'] for x in json.load(sys.stdin)['assets'] if re.fullmatch(r'ffmpeg-n[0-9.]+-latest-win64-gpl-[0-9.]+\.zip', x['name'])]; print(sorted(a, key=lambda u: [int(n) for n in re.search(r'-n([0-9.]+)-', u).group(1).split('.')])[-1])")
+          echo "ffmpeg: $url"
+          curl -fsSL -o ffmpeg.zip "$url"
           unzip -q ffmpeg.zip -d ffmpeg
           mv ffmpeg/*/bin ffmpeg-bin
           cp ffmpeg/*/LICENSE.txt ffmpeg-bin/ || true
