@@ -5,7 +5,7 @@
 #
 #   packaging/windows/build.sh <ffmpeg-dir>
 #
-# <ffmpeg-dir> holds a static ffmpeg.exe and ffprobe.exe (CI uses BtbN's GPL builds).
+# <ffmpeg-dir> holds ffmpeg.exe, ffprobe.exe and their DLLs (packaging/windows/build-ffmpeg.sh).
 #
 # The folder mirrors the MSYS2 prefix (bin/, lib/, share/) because GLib, GObject
 # introspection and Python all find their data relative to the DLL or executable.
@@ -33,6 +33,9 @@ find "$PYLIB" -name '__pycache__' -prune -exec rm -rf {} +
 cp -r "$PREFIX/lib/girepository-1.0" "$OUT/lib/"
 cp -r "$PREFIX/share/glib-2.0/schemas" "$OUT/share/glib-2.0/"
 cp -r "$PREFIX/share/icons/Adwaita" "$PREFIX/share/icons/hicolor" "$OUT/share/icons/"
+# Windows draws its own cursors and GTK only needs the scalable and symbolic icons
+find "$OUT/share/icons/Adwaita" -mindepth 1 -maxdepth 1 -type d \
+    ! -name scalable ! -name symbolic -exec rm -rf {} +
 
 # gdk-pixbuf loaders, with a cache template narenj.py fills in at startup
 PIXBUF="lib/gdk-pixbuf-2.0/2.10.0"
@@ -50,6 +53,8 @@ cp "$PREFIX/bin/gdbus.exe" "$OUT/bin/"
 SEED=(libgtk-4-1.dll libadwaita-1-0.dll librsvg-2-2.dll libpangocairo-1.0-0.dll libgraphene-1.0-0.dll
       libharfbuzz-gobject-0.dll libgirepository-1.0-1.dll)
 for dll in "${SEED[@]}"; do cp "$PREFIX/bin/$dll" "$OUT/bin/"; done
+# ffmpeg first, so the encoder libraries its DLLs link to are collected with everything else
+cp "$FFMPEG_DIR"/*.exe "$FFMPEG_DIR"/*.dll "$OUT/bin/"
 mapfile -t BINARIES < <(find "$OUT" -type f \( -name '*.exe' -o -name '*.dll' -o -name '*.pyd' \))
 PREFIX_WIN="$(cygpath -w "$PREFIX" | tr '[:upper:]' '[:lower:]')"
 for _ in 1 2 3; do  # a few rounds pick up dependencies of newly copied DLLs
@@ -62,9 +67,6 @@ for _ in 1 2 3; do  # a few rounds pick up dependencies of newly copied DLLs
     done
     mapfile -t BINARIES < <(find "$OUT/bin" -type f -name '*.dll')
 done
-
-# ffmpeg (static, needs no DLLs)
-cp "$FFMPEG_DIR/ffmpeg.exe" "$FFMPEG_DIR/ffprobe.exe" "$OUT/bin/"
 
 # Narenj itself
 cp "$SRC/narenj.py" "$SRC/narenj.svg" "$OUT/share/narenj/"

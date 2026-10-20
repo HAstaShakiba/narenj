@@ -91,9 +91,9 @@ On Ubuntu 22.04 the package pulls in everything it needs, including `fonts-inter
 The UI uses Apple's San Francisco font when it is installed and otherwise
 [Inter](https://rsms.me/inter/), its closest open counterpart. `fonts/InterVariable.ttf` is
 Inter 4.1, distributed under the SIL Open Font License (see `fonts/LICENSE-Inter-OFL.txt`).
-On Windows it uses Segoe UI. The Windows installer bundles a static ffmpeg build from
-[BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds), which is GPL licensed; its source is
-available from [ffmpeg.org](https://ffmpeg.org/download.html).
+On Windows it uses Segoe UI. The Windows installer bundles FFmpeg 8.1.3, built from the
+[ffmpeg.org](https://ffmpeg.org/download.html) sources by `packaging/windows/build-ffmpeg.sh` with
+x264, libvpx, Opus, LAME, Vorbis, libwebp and dav1d; that build is GPL licensed.
 
 ## Development
 

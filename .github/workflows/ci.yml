@@ -23,7 +23,7 @@ jobs:
         run: python3 -m unittest discover -s tests -v
 
   # Windows: the same tests on MSYS2's Python and GTK, then a self-contained build (Python, GTK,
-  # static ffmpeg) that must start on its own, packed into an Inno Setup installer.
+  # a slim ffmpeg built here and cached) that must start on its own, packed into an installer.
   windows:
     runs-on: windows-latest
     defaults:
@@ -44,17 +44,27 @@ jobs:
             mingw-w64-ucrt-x86_64-librsvg
             mingw-w64-ucrt-x86_64-adwaita-icon-theme
             mingw-w64-ucrt-x86_64-ntldd
-            unzip
-      - name: Fetch ffmpeg
-        run: |
-          # newest stable static build (BtbN keeps only the last few release branches)
-          url=$(curl -fsSL https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/tags/latest \
-            | python -c "import json,sys,re; a=[x['browser_download_url'] for x in json.load(sys.stdin)['assets'] if re.fullmatch(r'ffmpeg-n[0-9.]+-latest-win64-gpl-[0-9.]+\.zip', x['name'])]; print(sorted(a, key=lambda u: [int(n) for n in re.search(r'-n([0-9.]+)-', u).group(1).split('.')])[-1])")
-          echo "ffmpeg: $url"
-          curl -fsSL -o ffmpeg.zip "$url"
-          unzip -q ffmpeg.zip -d ffmpeg
-          mv ffmpeg/*/bin ffmpeg-bin
-          cp ffmpeg/*/LICENSE.txt ffmpeg-bin/ || true
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-nasm
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-x264
+            mingw-w64-ucrt-x86_64-libvpx
+            mingw-w64-ucrt-x86_64-opus
+            mingw-w64-ucrt-x86_64-lame
+            mingw-w64-ucrt-x86_64-libvorbis
+            mingw-w64-ucrt-x86_64-libwebp
+            mingw-w64-ucrt-x86_64-dav1d
+            mingw-w64-ucrt-x86_64-zlib
+            make
+            diffutils
+      - uses: actions/cache@v4
+        id: ffmpeg-cache
+        with:
+          path: ffmpeg-bin
+          key: ffmpeg-${{ hashFiles('packaging/windows/build-ffmpeg.sh') }}
+      - name: Build ffmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: packaging/windows/report.sh "Windows ffmpeg build" packaging/windows/build-ffmpeg.sh ffmpeg-bin
       - name: Test
         run: PATH="$PWD/ffmpeg-bin:$PATH" packaging/windows/report.sh "Windows tests" python -m unittest discover -s tests -v
       - name: Build

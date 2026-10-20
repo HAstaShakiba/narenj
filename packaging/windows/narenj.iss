@@ -26,7 +26,7 @@ OutputBaseFilename=narenj-{#Version}-setup
 SetupIconFile=narenj.ico
 UninstallDisplayIcon={app}\narenj.ico
 LicenseFile=..\..\LICENSE
-Compression=lzma2/max
+Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 
