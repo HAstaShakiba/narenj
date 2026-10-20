@@ -100,9 +100,12 @@ class Action:
         return kind in self.spec
 
 
+# yuv420p needs even dimensions; odd-sized GIFs and phone clips would fail otherwise
+EVEN_SIZE = "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+
+
 def _x264(crf, preset="medium"):
-    # yuv420p needs even dimensions; odd-sized GIFs and phone clips would fail otherwise
-    return ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-crf", str(crf),
+    return ["-vf", EVEN_SIZE, "-c:v", "libx264", "-crf", str(crf),
             "-preset", preset, "-pix_fmt", "yuv420p"]
 
 
@@ -117,7 +120,9 @@ WHEELS = {
         Action("mp4", "MP4", "H.264", {VIDEO: ("mp4", _x264(23) + ["-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart"])}),
         Action("mov", "MOV", "QuickTime", {VIDEO: ("mov", _x264(20) + ["-c:a", "aac", "-b:a", "192k"])}),
         Action("mkv", "MKV", "remux", {VIDEO: ("mkv", ["-map", "0", "-c", "copy"])}),
-        Action("webm", "WebM", "VP9", {VIDEO: ("webm", ["-c:v", "libvpx-vp9", "-crf", "32", "-b:v", "0", "-row-mt", "1", "-c:a", "libopus", "-b:a", "128k"])}),
+        Action("webm", "WebM", "VP9", {VIDEO: ("webm", [
+            "-vf", EVEN_SIZE, "-pix_fmt", "yuv420p", "-c:v", "libvpx-vp9", "-crf", "32", "-b:v", "0", "-row-mt", "1",
+            "-c:a", "libopus", "-b:a", "128k"])}),
         Action("gif", "GIF", "480p · 12fps", {VIDEO: ("gif", ["-vf", GIF_FILTER, "-loop", "0", "-an"])}),
         Action("mp3", "MP3", "V2", {k: ("mp3", ["-vn", "-c:a", "libmp3lame", "-q:a", "2"]) for k in AV}),
         # a video's soundtrack goes to MP3; the other audio targets are for audio files, keeping
