@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <radialGradient id="peel" cx="40%" cy="35%" r="70%">
+      <stop offset="0" stop-color="#ffc062"/>
+      <stop offset="0.6" stop-color="#ff8a1f"/>
+      <stop offset="1" stop-color="#f05a00"/>
+    </radialGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7bd88f"/>
+      <stop offset="1" stop-color="#2e9e57"/>
+    </linearGradient>
+  </defs>
+  <circle cx="64" cy="70" r="50" fill="url(#peel)"/>
+  <g stroke="#fff" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round">
+    <line x1="64" y1="52" x2="64" y2="32"/>
+    <line x1="64" y1="88" x2="64" y2="108"/>
+    <line x1="46" y1="70" x2="26" y2="70"/>
+    <line x1="82" y1="70" x2="102" y2="70"/>
+    <line x1="51" y1="57" x2="37" y2="43"/>
+    <line x1="77" y1="83" x2="91" y2="97"/>
+    <line x1="77" y1="57" x2="91" y2="43"/>
+    <line x1="51" y1="83" x2="37" y2="97"/>
+  </g>
+  <circle cx="64" cy="70" r="15" fill="#fff" fill-opacity="0.9"/>
+  <path d="M60 64 l12 6 -12 6z" fill="#ff7a1a"/>
+  <path d="M66 22 C78 6 100 8 104 14 C96 26 80 30 66 22z" fill="url(#leaf)"/>
+</svg>

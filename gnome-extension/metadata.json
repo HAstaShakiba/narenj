@@ -1,0 +1,7 @@
+{
+  "uuid": "narenj@narenj.ir",
+  "name": "Narenj on top",
+  "description": "Keeps the Narenj wheel above other windows, on every workspace.",
+  "shell-version": ["42", "43", "44"],
+  "version": 1
+}

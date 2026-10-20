@@ -1,0 +1,7 @@
+{
+  "uuid": "narenj-gnome45@narenj.ir",
+  "name": "Narenj on top",
+  "description": "Keeps the Narenj wheel above other windows, on every workspace, and tells it which modifier keys are held during a drag.",
+  "shell-version": ["45", "46", "47", "48", "49"],
+  "version": 1
+}
