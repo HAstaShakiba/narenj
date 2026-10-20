@@ -66,6 +66,16 @@ class ActionTest(unittest.TestCase):
             make("photo.jpg", "-f", "lavfi", "-i", "testsrc=size=301x201", "-frames:v", "1"),
             make("odd.gif", "-f", "lavfi", "-i", "testsrc=size=301x201:rate=10:duration=1"),
         ]
+        subtitles = os.path.join(cls.tmp, "subs.srt")
+        with open(subtitles, "w") as f:
+            f.write("1\n00:00:00,000 --> 00:00:01,000\nHello\n\n")
+        cls.samples.append(make("subs.mkv", "-i", cls.samples[0], "-i", subtitles, "-map", "0", "-map", "1",
+                                "-c", "copy", "-c:s", "srt"))
+        cls.wide = make("wide.mp4", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30:duration=1",
+                        "-f", "lavfi", "-i", "sine=f=220:duration=1", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", "-shortest")
+        cls.silent = make("silent.mp4", "-f", "lavfi", "-i", "testsrc=size=200x150:rate=25:duration=1",
+                          "-c:v", "libx264", "-pix_fmt", "yuv420p")
         svg = os.path.join(cls.tmp, "icon.svg")
         with open(svg, "w") as f:
             f.write('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="48">'
@@ -81,6 +91,8 @@ class ActionTest(unittest.TestCase):
             kind = n.kind_of(src)
             for mode in (n.CONVERT, n.TOOLS):
                 for action in n.wheel_items(mode, kind, n.file_ext(src)):
+                    if action.id == "srt" and not n.has_stream(src, "subtitle"):
+                        continue  # the app says "No subtitles" instead of running ffmpeg
                     with self.subTest(file=os.path.basename(src), action=action.id):
                         dst = n.output_path(src, action, kind)
                         trim = (("-ss", "0.2"), ("-t", "0.5")) if action.prompt == "trim" else ((), ())
@@ -88,6 +100,31 @@ class ActionTest(unittest.TestCase):
                         result = subprocess.run(cmd, capture_output=True, text=True)
                         self.assertEqual(result.returncode, 0, result.stderr[-400:])
                         self.assertGreater(os.path.getsize(dst), 0)
+
+    def run_join(self, files, kind):
+        join = next(a for a in n.WHEELS[n.ACTIONS] if a.id == "join")
+        dst = n.output_path(files[0], join, kind)
+        result = subprocess.run(n.join_command(files, kind, dst), capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr[-400:])
+        return dst
+
+    def test_join_videos_of_different_sizes(self):
+        dst = self.run_join([self.samples[0], self.wide], n.VIDEO)
+        self.assertAlmostEqual(n.probe_duration(dst), 3.0, delta=0.3)
+        video = next(s for s in n.probe(dst)["streams"] if s["codec_type"] == "video")
+        self.assertEqual((video["width"], video["height"]), (320, 240))
+
+    def test_join_without_audio(self):
+        dst = self.run_join([self.samples[0], self.silent], n.VIDEO)
+        self.assertFalse(n.has_stream(dst, "audio"))
+
+    def test_join_audio(self):
+        dst = self.run_join([self.samples[1], self.samples[1]], n.AUDIO)
+        self.assertAlmostEqual(n.probe_duration(dst), 4.0, delta=0.2)
+
+    def test_join_order_is_natural(self):
+        self.assertEqual(sorted(["clip10.mp4", "clip2.mp4", "Clip1.mp4"], key=n.natural_key),
+                         ["Clip1.mp4", "clip2.mp4", "clip10.mp4"])
 
 
 if __name__ == "__main__":

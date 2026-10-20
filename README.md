@@ -5,24 +5,56 @@ A drag-and-drop ffmpeg wheel for GNOME, inspired by [Tangerine](https://tangerin
 Drag a file onto the wheel and drop it on a wedge: Narenj converts, compresses, trims or otherwise
 processes it with ffmpeg and saves the result next to the original. Everything runs locally.
 
+<p align="center">
+  <img src="Screenshot/convert.png" width="32%" alt="Convert wheel">
+  <img src="Screenshot/tools.png" width="32%" alt="Tools wheel">
+  <img src="Screenshot/actions.png" width="32%" alt="Actions wheel">
+</p>
+<p align="center"><sub>The Convert, Tools and Actions wheels (Shift, Ctrl, Alt) in the dark theme</sub></p>
+
+## Switching wheels: Shift, Ctrl, Alt
+
+The wheel has three tabs, and you switch between them with the modifier keys:
+
+| Key | Wheel |
+|---|---|
+| **Shift** | Convert |
+| **Ctrl** | Tools |
+| **Alt** | Actions |
+
+This works **while you are dragging a file onto the wheel** too: keep the mouse button down, press
+Shift, Ctrl or Alt, and the wheel changes under the file before you drop it. The mouse wheel and Tab
+also switch tabs, and the settings choose which one the wheel opens on.
+
 ## Wheels
 
-| Wheel | Key | What it does |
-|---|---|---|
-| Convert | Shift | MP4, MOV, MKV, WebM, GIF, MP3, M4A, WAV, FLAC, OGG, Opus, PNG, JPG, WebP, BMP, TIFF |
-| Tools | Ctrl | Compress, Trim, Resize, Rotate, Grayscale, Mute, Frame, Normalize, Mono, Strip metadata |
-| Actions | Alt | Open, Reveal in Files, Copy path, Info (ffprobe), Trash |
+| Wheel | Video | Audio | Image |
+|---|---|---|---|
+| Convert | MP4, MOV, MKV, WebM, GIF, animated WebP, MP3, SRT subtitles | MP3, M4A, WAV, FLAC, OGG, Opus | PNG, JPG, WebP, BMP, TIFF, ICO |
+| Tools | Compress, Trim, Resize, Rotate, Mute, Frame, Normalize, Strip metadata | Compress, Trim, Normalize, Mono, Strip metadata | Compress, Resize, Rotate, Grayscale, Strip metadata |
+| Actions | Open, Reveal in Files, Copy path, Info, Trash, Join | same | Open, Reveal, Copy path, Info, Trash |
 
-Wedges are filtered by file type (video, audio, image including SVG, folder). Hold Shift, Ctrl or
-Alt while dragging to switch wheels; the mouse wheel and Tab switch them too.
+A wheel never shows more than 8 wedges, and Convert hides the file's own format. SVG files count as
+images (their tools write PNG). **Join** puts several videos or songs end to end, in name order;
+videos of different sizes are fitted to the first one's frame. **SRT** pulls out a video's first
+subtitle track.
 
 ## Using it
 
 - **Ctrl+Alt+N** opens the wheel; pressing it again closes it.
 - Drop a file on a wedge to run it, or on the centre to load the file and then click a wedge.
 - Click the centre to pick files; drag the centre to move the wheel.
-- Right-click for the menu: choose files, glass level (clear / regular / tinted), cancel jobs, quit.
+- Right-click for the menu: choose files, settings, glass level (clear / regular / tinted), cancel jobs, quit.
 - Arrow keys pick a wedge, Enter applies it, Esc clears the selection.
+
+## Settings
+
+Right-click the wheel and choose **Settings…** (or press Ctrl+,):
+
+- **Opens on**: the wheel shown when Narenj starts (Convert, Tools or Actions).
+- **Glass**: how much of the desktop shows through.
+- **Open and close the wheel**: click the shortcut and press a new key combination; Esc cancels,
+  Backspace turns the shortcut off.
 
 The wheel is a borderless, translucent window. A small GNOME Shell extension keeps it above other
 windows on every workspace and reports the modifier keys held during a drag, since Wayland gives
@@ -99,3 +131,5 @@ SIL Open Font License.
 | `gnome-extension-45/` | The same helper for GNOME 45+ (ES modules) |
 | `packaging/` | `.deb` build script, launcher and desktop entry |
 | `install.sh` | Per-user install from the checkout |
+| `tests/` | Wheel contents and every ffmpeg wedge on generated media |
+| `Screenshot/` | The images above |

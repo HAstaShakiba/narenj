@@ -7,6 +7,7 @@ Three wheels, like Tangerine/FanDrop: Convert (Shift), Tools (Ctrl), Actions (Al
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -101,17 +102,26 @@ WHEELS = {
         Action("webm", "WebM", "VP9", {VIDEO: ("webm", ["-c:v", "libvpx-vp9", "-crf", "32", "-b:v", "0", "-row-mt", "1", "-c:a", "libopus", "-b:a", "128k"])}),
         Action("gif", "GIF", "480p · 12fps", {VIDEO: ("gif", ["-vf", GIF_FILTER, "-loop", "0", "-an"])}),
         Action("mp3", "MP3", "V2", {k: ("mp3", ["-vn", "-c:a", "libmp3lame", "-q:a", "2"]) for k in AV}),
-        Action("m4a", "M4A", "AAC", {k: ("m4a", ["-vn", "-c:a", "aac", "-b:a", "192k"]) for k in AV}),
-        Action("wav", "WAV", "PCM", {k: ("wav", ["-vn", "-c:a", "pcm_s16le"]) for k in AV}),
-        # audio-only targets; a video's soundtrack goes to MP3, M4A or WAV, keeping its wheel at 8
+        # a video's soundtrack goes to MP3; the other audio targets are for audio files, keeping
+        # the video wheel at 8 alongside animated WebP and subtitles
+        Action("m4a", "M4A", "AAC", {AUDIO: ("m4a", ["-vn", "-c:a", "aac", "-b:a", "192k"])}),
+        Action("wav", "WAV", "PCM", {AUDIO: ("wav", ["-vn", "-c:a", "pcm_s16le"])}),
         Action("flac", "FLAC", "lossless", {AUDIO: ("flac", ["-vn", "-c:a", "flac"])}),
         Action("ogg", "OGG", "Vorbis", {AUDIO: ("ogg", ["-vn", "-c:a", "libvorbis", "-q:a", "5"])}),
         Action("opus", "Opus", "128k", {AUDIO: ("opus", ["-vn", "-c:a", "libopus", "-b:a", "128k"])}),
         Action("png", "PNG", "lossless", {IMAGE: ("png", ["-frames:v", "1"])}),
         Action("jpg", "JPG", "q 95", {IMAGE: ("jpg", ["-filter_complex", FLATTEN, "-frames:v", "1", "-q:v", "2"])}),
-        Action("webp", "WebP", "q 85", {IMAGE: ("webp", ["-frames:v", "1", "-c:v", "libwebp", "-quality", "85"])}),
+        Action("webp", "WebP", "still or animated", {
+            IMAGE: ("webp", ["-frames:v", "1", "-c:v", "libwebp", "-quality", "85"]),
+            VIDEO: ("webp", ["-vf", "fps=12,scale=480:-1:flags=lanczos", "-c:v", "libwebp", "-quality", "75",
+                             "-loop", "0", "-an"]),
+        }),
+        Action("srt", "SRT", "subtitles", {VIDEO: ("srt", ["-map", "0:s:0", "-c:s", "srt"])}),
         Action("bmp", "BMP", "bitmap", {IMAGE: ("bmp", ["-frames:v", "1"])}),
         Action("tiff", "TIFF", "print", {IMAGE: ("tiff", ["-frames:v", "1"])}),
+        # Windows icons are at most 256 px a side
+        Action("ico", "ICO", "icon", {IMAGE: ("ico", [
+            "-vf", "scale='min(256,iw)':'min(256,ih)':force_original_aspect_ratio=decrease", "-frames:v", "1"])}),
     ],
     TOOLS: [
         Action("compress", "Compress", "smaller file", {
@@ -153,12 +163,14 @@ WHEELS = {
         Action("copy", "Copy path", "clipboard", {k: None for k in ALL_FILES}, handler="copy"),
         Action("info", "Info", "ffprobe", {k: None for k in (VIDEO, AUDIO, IMAGE)}, handler="info"),
         Action("trash", "Trash", "move to bin", {k: None for k in ALL_FILES}, handler="trash"),
+        Action("join", "Join", "files end to end", {VIDEO: ("mp4", []), AUDIO: (None, [])},
+               handler="join", suffix="joined"),
     ],
 }
 
 
-# GIFs count as video but carry no audio track
-AUDIO_ONLY_IDS = {"mp3", "m4a", "wav", "flac", "ogg", "opus", "mute", "normalize", "mono"}
+# GIFs count as video but carry no audio or subtitle track
+AUDIO_ONLY_IDS = {"mp3", "m4a", "wav", "flac", "ogg", "opus", "mute", "normalize", "mono", "srt"}
 
 
 def wheel_items(mode, kind, ext):
@@ -194,6 +206,21 @@ def load_settings():
             return json.load(f)
     except (OSError, ValueError):
         return {}
+
+
+def default_mode():
+    mode = load_settings().get("default_mode")
+    return mode if mode in MODES else CONVERT
+
+
+def shortcut_settings():
+    """The Gio.Settings holding Narenj's toggle shortcut, registering it first if needed."""
+    keys = _gsettings("org.gnome.settings-daemon.plugins.media-keys")
+    if not keys:
+        return None
+    if SHORTCUT_PATH not in keys.get_strv("custom-keybindings"):
+        desktop_setup()
+    return _gsettings("org.gnome.settings-daemon.plugins.media-keys.custom-keybinding", SHORTCUT_PATH)
 
 
 def save_settings(settings):
@@ -265,6 +292,47 @@ def ffmpeg_command(src, kind, action, dst, extra_in=(), extra_out=()):
     """The ffmpeg call for one wedge; progress goes to stdout as key=value lines."""
     _, args = action.spec[kind]
     return [FFMPEG, "-hide_banner", "-nostdin", "-y", *svg_input_args(src), *extra_in, "-i", src, *args, *extra_out,
+            "-progress", "pipe:1", "-nostats", dst]
+
+
+def has_stream(path, codec_type):
+    return any(s.get("codec_type") == codec_type for s in probe(path).get("streams", []))
+
+
+def natural_key(path):
+    """clip2 before clip10."""
+    return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", os.path.basename(path))]
+
+
+def join_command(files, kind, dst):
+    """Concatenate files end to end. Videos are scaled and padded to the first one's frame, so
+    clips of any size join; audio is resampled to 48 kHz stereo."""
+    infos = [probe(f) for f in files]
+    with_audio = all(any(s.get("codec_type") == "audio" for s in i.get("streams", [])) for i in infos)
+    graph, labels = [], []
+    if kind == VIDEO:
+        first = next(s for s in infos[0].get("streams", []) if s.get("codec_type") == "video")
+        w, h = first["width"] // 2 * 2, first["height"] // 2 * 2
+        for i in range(len(files)):
+            graph.append(f"[{i}:v]scale={w}:{h}:force_original_aspect_ratio=decrease,"
+                         f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v{i}]")
+            labels.append(f"[v{i}]")
+            if with_audio:
+                graph.append(f"[{i}:a]aresample=48000,aformat=channel_layouts=stereo[a{i}]")
+                labels.append(f"[a{i}]")
+        graph.append(f"{''.join(labels)}concat=n={len(files)}:v=1:a={int(with_audio)}" + ("[v][a]" if with_audio else "[v]"))
+        out = ["-map", "[v]", "-c:v", "libx264", "-crf", "23", "-preset", "medium", "-pix_fmt", "yuv420p"]
+        if with_audio:
+            out += ["-map", "[a]", "-c:a", "aac", "-b:a", "160k"]
+        out += ["-movflags", "+faststart"]
+    else:
+        for i in range(len(files)):
+            graph.append(f"[{i}:a]aresample=48000,aformat=channel_layouts=stereo[a{i}]")
+            labels.append(f"[a{i}]")
+        graph.append(f"{''.join(labels)}concat=n={len(files)}:v=0:a=1[a]")
+        out = ["-map", "[a]"]
+    inputs = [arg for f in files for arg in ("-i", f)]
+    return [FFMPEG, "-hide_banner", "-nostdin", "-y", *inputs, "-filter_complex", ";".join(graph), *out,
             "-progress", "pipe:1", "-nostats", dst]
 
 
@@ -361,6 +429,7 @@ ICONS = {
     "copy": "edit-copy",
     "info": "dialog-information",
     "trash": "user-trash",
+    "join": "insert-link",
 }
 ICON_ROOT = "/usr/share/icons/Adwaita/scalable"
 _icon_cache = {}
@@ -698,7 +767,7 @@ class Wheel(Gtk.DrawingArea):
     def __init__(self, win):
         super().__init__()
         self.win = win
-        self.mode = CONVERT
+        self.mode = default_mode()
         self.files = []
         self.kind = VIDEO
         self.ext = ""
@@ -763,6 +832,7 @@ class Wheel(Gtk.DrawingArea):
         menu = Gio.Menu()
         menu.append("Choose files…", "app.choose")
         menu.append("Clear selection", "app.clear")
+        menu.append("Settings…", "app.settings")
         glass = Gio.Menu()
         for level, label in (("clear", "Clear glass"), ("regular", "Regular glass"), ("tinted", "Tinted glass")):
             glass.append(label, f"app.glass::{level}")
@@ -1197,6 +1267,11 @@ class Window(Gtk.ApplicationWindow):
         if not targets:
             self.toast("Not for this file", action.label)
             return
+        if action.id == "srt":
+            targets = [(f, k) for f, k in targets if has_stream(f, "subtitle")]
+            if not targets:
+                self.toast("No subtitles", "in this file")
+                return
         if action.prompt == "trim":
             self.ask_trim(targets, action)
             return
@@ -1206,12 +1281,22 @@ class Window(Gtk.ApplicationWindow):
     def start_job(self, src, kind, action, extra_in=(), extra_out=(), duration=None):
         dst = output_path(src, action, kind)
         cmd = ffmpeg_command(src, kind, action, dst, extra_in, extra_out)
+        self.run_ffmpeg(src, dst, action, lambda: (
+            cmd, duration if duration is not None else (probe_duration(src) if kind != IMAGE else 0)))
+
+    def run_ffmpeg(self, src, dst, action, prepare):
+        """Track one ffmpeg run as a job. `prepare` runs off the UI thread (it may probe files)
+        and returns the command and its length in seconds."""
         job = Job(self, src, dst, action)
         self.jobs.append(job)
         self.jobs_changed()
 
         def worker():
-            total = duration if duration is not None else (probe_duration(src) if kind != IMAGE else 0)
+            try:
+                cmd, total = prepare()
+            except (StopIteration, KeyError, OSError) as e:
+                GLib.idle_add(job.finish, False, f"Could not read the files ({e.__class__.__name__})")
+                return
             run_job(job, cmd, total)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -1337,6 +1422,17 @@ class Window(Gtk.ApplicationWindow):
         self.get_clipboard().set_content(provider)
         self.toast("Copied ✓", "path" + ("s" if len(files) > 1 else ""))
 
+    def do_join(self, files):
+        join = next(a for a in WHEELS[ACTIONS] if a.id == "join")
+        kind = kind_of(files[0])
+        parts = sorted((f for f in files if kind_of(f) == kind), key=natural_key)
+        if kind not in join.spec or len(parts) < 2:
+            self.toast("Join", "drop 2 or more videos or songs")
+            return
+        dst = output_path(parts[0], join, kind)
+        self.run_ffmpeg(parts[0], dst, join, lambda: (
+            join_command(parts, kind, dst), sum(probe_duration(f) for f in parts)))
+
     def do_trash(self, files):
         trashed = 0
         for f in files:
@@ -1380,10 +1476,103 @@ class Window(Gtk.ApplicationWindow):
         dialog.present()
 
 
+class ShortcutRow(Adw.ActionRow):
+    """The toggle shortcut: click it, then press a new key combination."""
+
+    MODIFIER_KEYS = {Gdk.KEY_Shift_L, Gdk.KEY_Shift_R, Gdk.KEY_Control_L, Gdk.KEY_Control_R, Gdk.KEY_Alt_L,
+                     Gdk.KEY_Alt_R, Gdk.KEY_Super_L, Gdk.KEY_Super_R, Gdk.KEY_Meta_L, Gdk.KEY_Meta_R,
+                     Gdk.KEY_ISO_Level3_Shift}
+
+    def __init__(self, window):
+        super().__init__(title="Open and close the wheel",
+                         subtitle="Click, then press new keys. Esc cancels, Backspace turns it off.")
+        self.binding = shortcut_settings()
+        self.previous = None  # the old shortcut while we listen for a new one
+        self.keys = Gtk.ShortcutLabel(disabled_text="Off")
+        self.button = Gtk.Button(child=self.keys, valign=Gtk.Align.CENTER)
+        self.button.connect("clicked", self._listen)
+        self.add_suffix(self.button)
+        self.set_activatable_widget(self.button)
+        if self.binding:
+            self.keys.set_accelerator(self.binding.get_string("binding"))
+        else:
+            self.set_subtitle("Needs GNOME")
+            self.set_sensitive(False)
+        listen = Gtk.EventControllerKey(propagation_phase=Gtk.PropagationPhase.CAPTURE)
+        listen.connect("key-pressed", self._on_key)
+        window.add_controller(listen)
+        window.connect("close-request", lambda *_: self.previous is not None and self._finish(self.previous))
+
+    def _listen(self, _button):
+        if self.previous is not None:
+            return
+        self.previous = self.binding.get_string("binding")
+        # switch the old shortcut off meanwhile, or pressing it would close Narenj
+        self.binding.set_string("binding", "")
+        self.button.set_child(Gtk.Label(label="Press keys…"))
+
+    def _on_key(self, _ctrl, keyval, _code, state):
+        if self.previous is None:
+            return False
+        mods = state & Gtk.accelerator_get_default_mod_mask()
+        if keyval == Gdk.KEY_Escape and not mods:
+            self._finish(self.previous)
+        elif keyval == Gdk.KEY_BackSpace and not mods:
+            self._finish("")
+        elif keyval not in self.MODIFIER_KEYS and mods & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.ALT_MASK
+                                                          | Gdk.ModifierType.SUPER_MASK):
+            self._finish(Gtk.accelerator_name(Gdk.keyval_to_lower(keyval), mods))
+        return True  # plain keys need a Ctrl, Alt or Super with them; keep listening
+
+    def _finish(self, accelerator):
+        self.binding.set_string("binding", accelerator)
+        Gio.Settings.sync()
+        self.previous = None
+        self.keys.set_accelerator(accelerator)
+        self.button.set_child(self.keys)
+        return False
+
+
+class SettingsWindow(Adw.PreferencesWindow):
+    GLASS = ("clear", "regular", "tinted")
+
+    def __init__(self, app):
+        super().__init__(application=app, title="Narenj Settings", search_enabled=False)
+        self.set_default_size(480, 400)
+        self.app = app
+        page = Adw.PreferencesPage()
+
+        wheel = Adw.PreferencesGroup(title="Wheel")
+        mode = Adw.ComboRow(title="Opens on", subtitle="Shift, Ctrl and Alt still switch wheels",
+                            model=Gtk.StringList.new([MODE_TITLES[m] for m in MODES]))
+        mode.set_selected(MODES.index(default_mode()))
+        mode.connect("notify::selected", self._on_mode)
+        wheel.add(mode)
+        glass = Adw.ComboRow(title="Glass", subtitle="How much of the desktop shows through",
+                             model=Gtk.StringList.new(["Clear", "Regular", "Tinted"]))
+        current = app.lookup_action("glass").get_state().get_string()
+        glass.set_selected(self.GLASS.index(current) if current in self.GLASS else 1)
+        glass.connect("notify::selected", self._on_glass)
+        wheel.add(glass)
+        page.add(wheel)
+
+        keys = Adw.PreferencesGroup(title="Keyboard")
+        keys.add(ShortcutRow(self))
+        page.add(keys)
+        self.add(page)
+
+    def _on_mode(self, row, _pspec):
+        save_settings({**load_settings(), "default_mode": MODES[row.get_selected()]})
+
+    def _on_glass(self, row, _pspec):
+        self.app.activate_action("glass", GLib.Variant.new_string(self.GLASS[row.get_selected()]))
+
+
 class App(Adw.Application):
     def __init__(self):
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.HANDLES_OPEN)
         self.win = None
+        self.settings_win = None
         self.add_main_option("toggle", 0, GLib.OptionFlags.NONE, GLib.OptionArg.NONE,
                              "Open the wheel, or close it if it is already open", None)
         self.add_main_option("setup", 0, GLib.OptionFlags.NONE, GLib.OptionArg.NONE,
@@ -1397,6 +1586,7 @@ class App(Adw.Application):
             ("cancel", lambda: self.win.cancel_jobs()),
             ("quit", self.quit),
             ("toggle", self.toggle),
+            ("settings", self.show_settings),
         ):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", lambda _a, _p, cb=callback: cb())
@@ -1413,6 +1603,12 @@ class App(Adw.Application):
         if self.win:
             self.win.wheel.glass = level
             self.win.wheel.queue_draw()
+
+    def show_settings(self):
+        if not self.settings_win:
+            self.settings_win = SettingsWindow(self)
+            self.settings_win.connect("destroy", lambda *_: setattr(self, "settings_win", None))
+        self.settings_win.present()
 
     def do_handle_local_options(self, options):
         if options.contains("setup"):
@@ -1446,6 +1642,7 @@ class App(Adw.Application):
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), css,
                                                   Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         self.set_accels_for_action("app.quit", ["<Control>q"])
+        self.set_accels_for_action("app.settings", ["<Control>comma"])
 
     def do_activate(self):
         if not self.win:
