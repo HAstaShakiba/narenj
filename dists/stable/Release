@@ -1,7 +1,7 @@
-Architectures: all amd64 arm64
+Architectures: all amd64 arm64 i386
 Codename: stable
 Components: main
-Date: Tue, 20 Oct 2026 13:19:49 +0000
+Date: Tue, 20 Oct 2026 13:25:04 +0000
 Description: Narenj, a drag-and-drop ffmpeg wheel for GNOME
 Label: Narenj
 Origin: Narenj
@@ -13,6 +13,8 @@ MD5Sum:
  014b3de77486ba3327e38e9e10201f0f              824 main/binary-amd64/Packages.gz
  f6f749b158ff978182d72cb3734f6da7             1253 main/binary-arm64/Packages
  014b3de77486ba3327e38e9e10201f0f              824 main/binary-arm64/Packages.gz
+ f6f749b158ff978182d72cb3734f6da7             1253 main/binary-i386/Packages
+ 014b3de77486ba3327e38e9e10201f0f              824 main/binary-i386/Packages.gz
 SHA1:
  2d79739ccfacd339a4ced017c6635c4ee393f7c7             1253 main/binary-all/Packages
  62d3a7f1afb095138ea6e245f9dd7ac97617e4a8              824 main/binary-all/Packages.gz
@@ -20,6 +22,8 @@ SHA1:
  62d3a7f1afb095138ea6e245f9dd7ac97617e4a8              824 main/binary-amd64/Packages.gz
  2d79739ccfacd339a4ced017c6635c4ee393f7c7             1253 main/binary-arm64/Packages
  62d3a7f1afb095138ea6e245f9dd7ac97617e4a8              824 main/binary-arm64/Packages.gz
+ 2d79739ccfacd339a4ced017c6635c4ee393f7c7             1253 main/binary-i386/Packages
+ 62d3a7f1afb095138ea6e245f9dd7ac97617e4a8              824 main/binary-i386/Packages.gz
 SHA256:
  04341122c811101e2311414e19dd11e1607194de3e93704e20cf0795816daa80             1253 main/binary-all/Packages
  1a939fcc35816446c63800ea80b757122614c9991dc9d0f1e534ecd790d51f59              824 main/binary-all/Packages.gz
@@ -27,6 +31,8 @@ SHA256:
  1a939fcc35816446c63800ea80b757122614c9991dc9d0f1e534ecd790d51f59              824 main/binary-amd64/Packages.gz
  04341122c811101e2311414e19dd11e1607194de3e93704e20cf0795816daa80             1253 main/binary-arm64/Packages
  1a939fcc35816446c63800ea80b757122614c9991dc9d0f1e534ecd790d51f59              824 main/binary-arm64/Packages.gz
+ 04341122c811101e2311414e19dd11e1607194de3e93704e20cf0795816daa80             1253 main/binary-i386/Packages
+ 1a939fcc35816446c63800ea80b757122614c9991dc9d0f1e534ecd790d51f59              824 main/binary-i386/Packages.gz
 SHA512:
  bbe6f9c92f4207839196c7045724714f622644f7a8844dcc9c0679f71cb9a7ba3e2bce48b5c5a11dc615dae2e9d2f3749a2faa50bfa532435a11f40ec72d760f             1253 main/binary-all/Packages
  782ae0978a6b037a508ddf7aff607720013bf836d886e10358a65c25076158d5d36ddc73a35fec685b664c569cbdf299b1ceb6f0379b8a04055b5a3687ea6396              824 main/binary-all/Packages.gz
@@ -34,3 +40,5 @@ SHA512:
  782ae0978a6b037a508ddf7aff607720013bf836d886e10358a65c25076158d5d36ddc73a35fec685b664c569cbdf299b1ceb6f0379b8a04055b5a3687ea6396              824 main/binary-amd64/Packages.gz
  bbe6f9c92f4207839196c7045724714f622644f7a8844dcc9c0679f71cb9a7ba3e2bce48b5c5a11dc615dae2e9d2f3749a2faa50bfa532435a11f40ec72d760f             1253 main/binary-arm64/Packages
  782ae0978a6b037a508ddf7aff607720013bf836d886e10358a65c25076158d5d36ddc73a35fec685b664c569cbdf299b1ceb6f0379b8a04055b5a3687ea6396              824 main/binary-arm64/Packages.gz
+ bbe6f9c92f4207839196c7045724714f622644f7a8844dcc9c0679f71cb9a7ba3e2bce48b5c5a11dc615dae2e9d2f3749a2faa50bfa532435a11f40ec72d760f             1253 main/binary-i386/Packages
+ 782ae0978a6b037a508ddf7aff607720013bf836d886e10358a65c25076158d5d36ddc73a35fec685b664c569cbdf299b1ceb6f0379b8a04055b5a3687ea6396              824 main/binary-i386/Packages.gz
