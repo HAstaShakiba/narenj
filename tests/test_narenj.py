@@ -50,6 +50,11 @@ class WheelTest(unittest.TestCase):
         finally:
             n._encoders = saved
 
+    def test_every_wedge_icon_ships_with_narenj(self):
+        for name in set(n.ICONS.values()):
+            with self.subTest(icon=name):
+                self.assertTrue(os.path.exists(os.path.join(n.APP_DIR, "icons", f"{name}-symbolic.svg")))
+
     def test_svg_tools_write_png(self):
         rotate = next(a for a in n.WHEELS[n.TOOLS] if a.id == "rotate")
         self.assertTrue(n.output_path("/tmp/icon.svg", rotate, n.IMAGE).endswith(".png"))

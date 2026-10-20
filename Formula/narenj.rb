@@ -24,7 +24,7 @@ class Narenj < Formula
   end
 
   def install
-    libexec.install "narenj.py", "narenj.svg"
+    libexec.install "narenj.py", "narenj.svg", "icons"
     (bin/"narenj").write <<~SH
       #!/bin/sh
       exec "#{python.opt_libexec}/bin/python" "#{libexec}/narenj.py" "$@"

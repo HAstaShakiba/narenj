@@ -10,6 +10,7 @@ trap 'rm -rf "$ROOT"' EXIT
 
 install -Dm755 "$SRC/packaging/narenj.sh" "$ROOT/usr/bin/narenj"
 install -Dm755 "$SRC/narenj.py" "$ROOT/usr/share/narenj/narenj.py"
+install -Dm644 -t "$ROOT/usr/share/narenj/icons" "$SRC"/icons/*.svg
 install -Dm644 "$SRC/packaging/ir.narenj.Narenj.desktop" "$ROOT/usr/share/applications/ir.narenj.Narenj.desktop"
 install -Dm644 "$SRC/narenj.svg" "$ROOT/usr/share/icons/hicolor/scalable/apps/ir.narenj.Narenj.svg"
 for f in metadata.json extension.js; do

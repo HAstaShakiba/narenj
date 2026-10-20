@@ -12,6 +12,8 @@ ffmpeg_files = [os.path.join(FFMPEG, f) for f in sorted(os.listdir(FFMPEG))
 a = Analysis(
     [os.path.join(ROOT, "narenj.py")],
     binaries=[(f, "ffmpeg") for f in ffmpeg_files],
+    datas=[(os.path.join(ROOT, "icons", f), "icons") for f in os.listdir(os.path.join(ROOT, "icons"))
+           if f.endswith(".svg")],
     hiddenimports=["gi.repository.Adw", "gi.repository.Rsvg", "gi.repository.PangoCairo"],
     hooksconfig={
         "gi": {

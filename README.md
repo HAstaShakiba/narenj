@@ -153,4 +153,5 @@ SIL Open Font License.
 | `packaging/build-ffmpeg.sh` | The slim ffmpeg bundled on Windows and macOS (settings in `packaging/*/ffmpeg.sh`) |
 | `install.sh` | Per-user install from the checkout |
 | `tests/` | Wheel contents and every ffmpeg wedge on generated media |
+| `icons/` | The wedges' symbolic icons, from GNOME's Adwaita theme (LGPL v3 / CC BY-SA 3.0) |
 | `Screenshot/` | The images above |

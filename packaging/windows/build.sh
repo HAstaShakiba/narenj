@@ -70,6 +70,7 @@ done
 
 # Narenj itself
 cp "$SRC/narenj.py" "$SRC/narenj.svg" "$OUT/share/narenj/"
+cp -r "$SRC/icons" "$OUT/share/narenj/"
 cp "$SRC/packaging/windows/narenj.ico" "$OUT/"
 cp "$SRC/LICENSE" "$OUT/LICENSE.txt"
 [ -f "$FFMPEG_DIR/LICENSE.txt" ] && cp "$FFMPEG_DIR/LICENSE.txt" "$OUT/FFMPEG-LICENSE.txt"

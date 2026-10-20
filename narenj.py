@@ -665,7 +665,20 @@ ICONS = {
     "trash": "user-trash",
     "join": "insert-link",
 }
-ICON_ROOTS = [os.path.join(d, "icons", "Adwaita", "scalable") for d in GLib.get_system_data_dirs()]
+# Narenj ships the icons it uses (icons/, from Adwaita); the system theme is only a fallback,
+# and its layout differs between versions (scalable/<folder>/ before 43, symbolic/<folder>/ after)
+APP_DIR = sys._MEIPASS if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
+ICON_ROOTS = [os.path.join(d, "icons", "Adwaita", sub) for d in GLib.get_system_data_dirs()
+              for sub in ("symbolic", "scalable")]
+ICON_FOLDERS = ("actions", "mimetypes", "status", "devices", "places", "apps", "categories")
+
+
+def icon_path(name):
+    bundled = os.path.join(APP_DIR, "icons", f"{name}-symbolic.svg")
+    if os.path.exists(bundled):
+        return bundled
+    return next((p for p in (os.path.join(root, folder, f"{name}-symbolic.svg")
+                             for root in ICON_ROOTS for folder in ICON_FOLDERS) if os.path.exists(p)), None)
 _icon_cache = {}
 
 
@@ -674,20 +687,17 @@ def icon_surface(name, size, scale):
     key = (name, size, scale)
     if key not in _icon_cache:
         surface = None
-        for folder in ("actions", "mimetypes", "status", "devices", "places", "apps", "categories"):
-            path = next((p for p in (os.path.join(root, folder, f"{name}-symbolic.svg") for root in ICON_ROOTS)
-                         if os.path.exists(p)), None)
-            if path:
-                try:
-                    handle = Rsvg.Handle.new_from_file(path)
-                    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, size * scale, size * scale)
-                    viewport = Rsvg.Rectangle()
-                    viewport.x, viewport.y, viewport.width, viewport.height = 0, 0, size * scale, size * scale
-                    handle.render_document(cairo.Context(surface), viewport)
-                    surface.set_device_scale(scale, scale)
-                except GLib.Error:
-                    surface = None
-                break
+        path = icon_path(name)
+        if path:
+            try:
+                handle = Rsvg.Handle.new_from_file(path)
+                surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, size * scale, size * scale)
+                viewport = Rsvg.Rectangle()
+                viewport.x, viewport.y, viewport.width, viewport.height = 0, 0, size * scale, size * scale
+                handle.render_document(cairo.Context(surface), viewport)
+                surface.set_device_scale(scale, scale)
+            except GLib.Error:
+                surface = None
         _icon_cache[key] = surface
     return _icon_cache[key]
 
@@ -1921,6 +1931,12 @@ class App(Adw.Application):
     def self_test(self):
         """NARENJ_SELF_TEST=1: show the wheel and the settings, then quit; CI uses it to check
         that a build starts. Errors are counted by the excepthook in __main__."""
+        self.win.set_mode(TOOLS)  # the wheel with icons, for the screenshot
+        missing = sorted({name for name in ICONS.values() if not icon_path(name)})
+        if missing:
+            print("self-test: icons not found:", ", ".join(missing), flush=True)
+            sys.excepthook(RuntimeError, RuntimeError("icons not found"), None)
+
         def settings():
             shot = os.environ.get("NARENJ_SELF_TEST_SHOT")
             if shot and IS_MAC:  # CI publishes this, so the window can be checked without a Mac
