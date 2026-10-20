@@ -103,9 +103,10 @@ WHEELS = {
         Action("mp3", "MP3", "V2", {k: ("mp3", ["-vn", "-c:a", "libmp3lame", "-q:a", "2"]) for k in AV}),
         Action("m4a", "M4A", "AAC", {k: ("m4a", ["-vn", "-c:a", "aac", "-b:a", "192k"]) for k in AV}),
         Action("wav", "WAV", "PCM", {k: ("wav", ["-vn", "-c:a", "pcm_s16le"]) for k in AV}),
-        Action("flac", "FLAC", "lossless", {k: ("flac", ["-vn", "-c:a", "flac"]) for k in AV}),
-        Action("ogg", "OGG", "Vorbis", {k: ("ogg", ["-vn", "-c:a", "libvorbis", "-q:a", "5"]) for k in AV}),
-        Action("opus", "Opus", "128k", {k: ("opus", ["-vn", "-c:a", "libopus", "-b:a", "128k"]) for k in AV}),
+        # audio-only targets; a video's soundtrack goes to MP3, M4A or WAV, keeping its wheel at 8
+        Action("flac", "FLAC", "lossless", {AUDIO: ("flac", ["-vn", "-c:a", "flac"])}),
+        Action("ogg", "OGG", "Vorbis", {AUDIO: ("ogg", ["-vn", "-c:a", "libvorbis", "-q:a", "5"])}),
+        Action("opus", "Opus", "128k", {AUDIO: ("opus", ["-vn", "-c:a", "libopus", "-b:a", "128k"])}),
         Action("png", "PNG", "lossless", {IMAGE: ("png", ["-frames:v", "1"])}),
         Action("jpg", "JPG", "q 95", {IMAGE: ("jpg", ["-filter_complex", FLATTEN, "-frames:v", "1", "-q:v", "2"])}),
         Action("webp", "WebP", "q 85", {IMAGE: ("webp", ["-frames:v", "1", "-c:v", "libwebp", "-quality", "85"])}),
@@ -129,7 +130,6 @@ WHEELS = {
             IMAGE: (None, ["-vf", "transpose=1", "-frames:v", "1"]),
         }, suffix="rotated"),
         Action("gray", "Grayscale", "black & white", {
-            VIDEO: (None, ["-vf", "hue=s=0", "-c:a", "copy"]),
             IMAGE: (None, ["-vf", "hue=s=0", "-frames:v", "1"]),
         }, suffix="gray"),
         Action("mute", "Mute", "drop audio", {VIDEO: (None, ["-an", "-c:v", "copy"])}, suffix="muted"),
@@ -139,7 +139,6 @@ WHEELS = {
             AUDIO: (None, ["-af", "loudnorm=I=-16:TP=-1.5:LRA=11"]),
         }, suffix="normalized"),
         Action("mono", "Mono", "1 channel", {
-            VIDEO: (None, ["-ac", "1", "-c:v", "copy"]),
             AUDIO: (None, ["-ac", "1"]),
         }, suffix="mono"),
         Action("strip", "Strip", "metadata", {
@@ -260,6 +259,13 @@ def svg_input_args(path):
         return []
     widths = [s.get("width") or 0 for s in probe(path).get("streams", [])]
     return ["-width", str(max(widths + [1024])), "-keep_ar", "1"]
+
+
+def ffmpeg_command(src, kind, action, dst, extra_in=(), extra_out=()):
+    """The ffmpeg call for one wedge; progress goes to stdout as key=value lines."""
+    _, args = action.spec[kind]
+    return [FFMPEG, "-hide_banner", "-nostdin", "-y", *svg_input_args(src), *extra_in, "-i", src, *args, *extra_out,
+            "-progress", "pipe:1", "-nostats", dst]
 
 
 def probe_duration(path):
@@ -1199,9 +1205,7 @@ class Window(Gtk.ApplicationWindow):
 
     def start_job(self, src, kind, action, extra_in=(), extra_out=(), duration=None):
         dst = output_path(src, action, kind)
-        _, args = action.spec[kind]
-        cmd = [FFMPEG, "-hide_banner", "-nostdin", "-y", *svg_input_args(src), *extra_in, "-i", src, *args, *extra_out,
-               "-progress", "pipe:1", "-nostats", dst]
+        cmd = ffmpeg_command(src, kind, action, dst, extra_in, extra_out)
         job = Job(self, src, dst, action)
         self.jobs.append(job)
         self.jobs_changed()

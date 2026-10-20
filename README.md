@@ -66,14 +66,24 @@ The UI uses Apple's San Francisco font when it is installed and otherwise
 [Inter](https://rsms.me/inter/), its closest open counterpart. `fonts/InterVariable.ttf` is
 Inter 4.1, distributed under the SIL Open Font License (see `fonts/LICENSE-Inter-OFL.txt`).
 
+## Development
+
+```sh
+python3 -m unittest discover -s tests     # wheel contents + every ffmpeg wedge on generated media
+```
+
+GitHub Actions runs the same tests on every push and pull request.
+
 ## Releasing
 
-1. Bump the version and build: `./packaging/build-deb.sh 1.0.1`
-2. Publish: `./packaging/publish-apt.sh` signs the repository with the "Narenj apt repository" GnuPG
-   key and pushes it to the `gh-pages` branch (`--dry-run` builds it in `dist/apt-site` instead).
+1. Build and publish the apt repository: `./packaging/build-deb.sh 1.0.1 && ./packaging/publish-apt.sh`.
+   It signs the repository with the "Narenj apt repository" GnuPG key and pushes it to the
+   `gh-pages` branch (`--dry-run` builds it in `dist/apt-site` instead).
+2. Tag the release: `git tag -a v1.0.1 -m "Narenj 1.0.1" && git push origin v1.0.1`.
+   GitHub Actions tests it, builds the `.deb` and publishes the GitHub release.
 
-Keep a backup of that key (`gpg --export-secret-keys "Narenj apt repository"`): without it, updates
-can no longer be signed for people who already trust the repository.
+Keep a backup of the signing key (`gpg --export-secret-keys "Narenj apt repository"`): without
+it, updates can no longer be signed for people who already trust the repository.
 
 ## License
 
