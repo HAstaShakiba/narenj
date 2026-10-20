@@ -4,7 +4,7 @@ Hash: SHA256
 Architectures: all amd64 arm64 i386
 Codename: stable
 Components: main
-Date: Tue, 20 Oct 2026 14:27:43 +0000
+Date: Tue, 20 Oct 2026 14:36:28 +0000
 Description: Narenj, a drag-and-drop ffmpeg wheel for GNOME
 Label: Narenj
 Origin: Narenj
@@ -47,9 +47,9 @@ SHA512:
  22329540c5b46509741eaea30fd1a0115492379a49c994d9fad5b9188f09ad0864775ecdec5fcac2fd113c466d52373904233892e7755ee0ef2ef9bfca225df3             1436 main/binary-i386/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iJwEARYIAEQWIQQnvMhaN67rfsj23hMPwzuw0Z9/agUCatd6XyYcaGFzdGFzaGFr
-aWJhQHVzZXJzLm5vcmVwbHkuZ2l0aHViLmNvbQAKCRAPwzuw0Z9/aotrAQCVCzbI
-r6Ltdkw9Y3lLRnGWVuprxaqqYAONvLj0DC4VLQEAnnWElfLiZNfRaHMe0wMSn0gJ
-mm/gmefc7pqEMpC7Bg4=
-=jHMF
+iJwEARYIAEQWIQQnvMhaN67rfsj23hMPwzuw0Z9/agUCatd8bCYcaGFzdGFzaGFr
+aWJhQHVzZXJzLm5vcmVwbHkuZ2l0aHViLmNvbQAKCRAPwzuw0Z9/an8VAP9mNeuL
+pYFRhPEszFqFdI+NJrreFRDQYzV03E/vI5luIgEAsX35WHnq0l7W0bWxfpxpB9ym
+OSbwev1wsgQ6UulVXg4=
+=zjRT
 -----END PGP SIGNATURE-----
