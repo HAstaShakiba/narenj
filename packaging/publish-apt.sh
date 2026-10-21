@@ -70,20 +70,30 @@ VERSION="$(ls pool/main/n/narenj | sed -n 's/^narenj_\(.*\)_all\.deb$/\1/p' | so
 SETUP="https://github.com/HAstaShakiba/narenj/releases/download/v$VERSION/narenj-$VERSION-setup.exe"
 DMG="https://github.com/HAstaShakiba/narenj/releases/download/v$VERSION/narenj-$VERSION-macos.dmg"
 
-# the landing page (packaging/site/index.html) with this version's download links, its icon and
-# the wheel pictures, drawn by Narenj itself (needs PyGObject, like Narenj)
-sed -e "s|@VERSION@|$VERSION|g" -e "s|@SETUP@|$SETUP|g" -e "s|@DMG@|$DMG|g" -e "s|@URL@|$URL|g" \
-    "$SRC/packaging/site/index.html" > index.html
+# the landing pages (packaging/site/index.html and its Persian fa/index.html) with this version's
+# download links, their styles, script and fonts, the icon and the wheel pictures, drawn by
+# Narenj itself (needs PyGObject, like Narenj)
+mkdir -p fa
+for page in index.html fa/index.html; do
+    sed -e "s|@VERSION@|$VERSION|g" -e "s|@SETUP@|$SETUP|g" -e "s|@DMG@|$DMG|g" -e "s|@URL@|$URL|g" \
+        "$SRC/packaging/site/$page" > "$page"
+done
+cp "$SRC/packaging/site/site.css" "$SRC/packaging/site/site.js" .
+rm -rf fonts
+cp -r "$SRC/packaging/site/fonts" .
 cp "$SRC/narenj.svg" icon.svg
 rm -rf screenshots
 # the distribution's own Python, which has PyGObject even when python3 points elsewhere
 PY="$(sed -n 's/^default-version *= *//p' /usr/share/python3/debian_defaults 2>/dev/null)"
 "${PY:-python3}" "$SRC/packaging/site/render-wheels.py" .
 # for search engines: submit @URL@/sitemap.xml in Google Search Console and Bing Webmaster Tools
+TODAY="$(date -u +%Y-%m-%d)"
+ALTERNATES="<xhtml:link rel=\"alternate\" hreflang=\"en\" href=\"$URL/\"/><xhtml:link rel=\"alternate\" hreflang=\"fa\" href=\"$URL/fa/\"/><xhtml:link rel=\"alternate\" hreflang=\"x-default\" href=\"$URL/\"/>"
 cat > sitemap.xml <<XML
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>$URL/</loc><lastmod>$(date -u +%Y-%m-%d)</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url><loc>$URL/</loc><lastmod>$TODAY</lastmod><changefreq>weekly</changefreq><priority>1.0</priority>$ALTERNATES</url>
+  <url><loc>$URL/fa/</loc><lastmod>$TODAY</lastmod><changefreq>weekly</changefreq><priority>0.9</priority>$ALTERNATES</url>
 </urlset>
 XML
 
