@@ -11,11 +11,21 @@ archives, and saves the result next to the original. Everything runs on your own
 app · apt repository for Ubuntu and Debian · Homebrew
 
 <p align="center">
-  <img src="Screenshot/convert.png" width="32%" alt="Convert wheel">
-  <img src="Screenshot/tools.png" width="32%" alt="Tools wheel">
-  <img src="Screenshot/actions.png" width="32%" alt="Actions wheel">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Screenshot/wheel-convert-dark.png">
+    <img src="Screenshot/wheel-convert-light.png" width="32%" alt="Narenj's Convert wheel">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Screenshot/wheel-tools-dark.png">
+    <img src="Screenshot/wheel-tools-light.png" width="32%" alt="Narenj's Tools wheel">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Screenshot/wheel-actions-dark.png">
+    <img src="Screenshot/wheel-actions-light.png" width="32%" alt="Narenj's Actions wheel">
+  </picture>
 </p>
-<p align="center"><sub>The Convert, Tools and Actions wheels (Shift, Ctrl, Alt) in the dark theme</sub></p>
+<p align="center"><sub>The Convert, Tools and Actions wheels (Shift, Ctrl, Alt), with the tab bar above them;
+they follow your light or dark theme</sub></p>
 
 ## Wheels
 
@@ -186,4 +196,4 @@ SIL Open Font License.
 | `install.sh` | Per-user install from the checkout |
 | `tests/` | Wheel contents and every ffmpeg wedge on generated media |
 | `icons/` | The wedges' symbolic icons, from GNOME's Adwaita theme (LGPL v3 / CC BY-SA 3.0) |
-| `Screenshot/` | The images above |
+| `Screenshot/` | The wheel pictures above, drawn by `packaging/site/render-wheels.py` |
