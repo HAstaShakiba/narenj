@@ -2054,8 +2054,17 @@ class App(Adw.Application):
 
         def settings():
             shot = os.environ.get("NARENJ_SELF_TEST_SHOT")
-            if shot and IS_MAC:  # CI publishes this, so the window can be checked without a Mac
+            # CI publishes this, so the window can be checked without a Mac or a Windows PC
+            if shot and IS_MAC:
                 subprocess.run(["screencapture", "-x", shot], check=False)
+            elif shot and IS_WINDOWS:
+                capture = (
+                    "Add-Type -AssemblyName System.Windows.Forms,System.Drawing;"
+                    "$b=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds;"
+                    "$i=New-Object System.Drawing.Bitmap $b.Width,$b.Height;"
+                    "[System.Drawing.Graphics]::FromImage($i).CopyFromScreen($b.Location,[System.Drawing.Point]::Empty,$b.Size);"
+                    f"$i.Save('{shot}',[System.Drawing.Imaging.ImageFormat]::Png)")
+                subprocess.run(["powershell", "-NoProfile", "-Command", capture], check=False, **NO_CONSOLE)
             self.show_settings()
             GLib.timeout_add(1500, done)
             return False

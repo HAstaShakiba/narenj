@@ -26,6 +26,8 @@ jobs:
   # a slim ffmpeg built here and cached) that must start on its own, packed into an installer.
   windows:
     runs-on: windows-latest
+    permissions:
+      contents: write  # to publish the app's screenshot on the ci-screens-windows branch
     defaults:
       run:
         shell: msys2 {0}
@@ -86,6 +88,7 @@ jobs:
         timeout-minutes: 3
         run: |
           $env:NARENJ_SELF_TEST = "1"
+          $env:NARENJ_SELF_TEST_SHOT = "$PWD\windows-wheel.png"
           $app = "dist\windows\Narenj"
           $p = Start-Process "$app\bin\python.exe" -ArgumentList "$app\share\narenj\narenj.py" `
             -PassThru -NoNewWindow -Wait -RedirectStandardOutput out.txt -RedirectStandardError err.txt
@@ -96,6 +99,21 @@ jobs:
             Write-Output ("::error title=Windows self-test::" + ($log -replace "%", "%25" -replace "`r", "" -replace "`n", "%0A"))
             exit 1
           }
+      # a screenshot of the running app, readable at
+      # https://raw.githubusercontent.com/<repo>/ci-screens-windows/windows-wheel.png without signing in
+      - name: Publish the screenshot
+        if: always() && github.event_name == 'push'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path windows-wheel.png)) { exit 0 }
+          New-Item -ItemType Directory shots | Out-Null
+          Copy-Item windows-wheel.png shots/
+          Set-Location shots
+          git init -q -b ci-screens-windows
+          git add windows-wheel.png
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" `
+            commit -q -m "Windows screenshot of $env:GITHUB_SHA"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/$env:GITHUB_REPOSITORY" ci-screens-windows
       - name: Installer
         shell: pwsh
         run: |
