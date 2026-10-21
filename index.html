@@ -1,34 +1,405 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Narenj</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>body{font:16px/1.5 system-ui,sans-serif;max-width:46rem;margin:3rem auto;padding:0 1rem}
-pre{background:#f4f4f5;padding:1rem;border-radius:8px;overflow-x:auto}
-.button{display:inline-block;background:#f25c1f;color:#fff;padding:.6rem 1.2rem;border-radius:8px;
-text-decoration:none;font-weight:600}</style></head>
-<body><h1>Narenj</h1>
-<p>A drag-and-drop ffmpeg wheel for GNOME, Windows and macOS. Latest version: 1.4.0.
-Source: <a href="https://github.com/HAstaShakiba/narenj">github.com/HAstaShakiba/narenj</a></p>
-<h2>Install on Windows 10 / 11</h2>
-<p><a class="button" href="https://github.com/HAstaShakiba/narenj/releases/download/v1.4.0/narenj-1.4.0-setup.exe">Download narenj-1.4.0-setup.exe</a></p>
-<p>Run the installer. It installs for your user without admin rights and brings its own Python,
-GTK and ffmpeg. Press <b>Ctrl+Alt+N</b> to open the wheel and again to close it; change the keys in
-Start menu &rsaquo; Narenj &rsaquo; Properties &rsaquo; Shortcut key.
-Older versions are on the <a href="https://github.com/HAstaShakiba/narenj/releases">releases page</a>.</p>
-<h2>Install on macOS</h2>
-<p><a class="button" href="https://github.com/HAstaShakiba/narenj/releases/download/v1.4.0/narenj-1.4.0-macos.dmg">Download narenj-1.4.0-macos.dmg</a> (Apple Silicon)</p>
-<p>Open it and drag Narenj to Applications. The app is not signed with an Apple Developer ID, so
-the first time open <b>System Settings &rsaquo; Privacy &amp; Security</b> and click
-<b>Open Anyway</b>. <b>Control+Option+N</b> shows and hides the wheel. On Intel Macs, or to get
-updates through Homebrew:</p>
-<pre>brew tap hastashakiba/narenj https://github.com/HAstaShakiba/narenj
-brew install narenj</pre>
-<h2>Install on Ubuntu / Debian</h2>
-<pre>sudo install -d -m 0755 /etc/apt/keyrings
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Narenj — drop a file, pick a wedge</title>
+  <meta name="description" content="Narenj is a drag-and-drop file converter for Linux, Windows and macOS. Drop a file on the wheel to convert, compress or trim video, audio, images, PDFs, documents and archives, all on your own computer.">
+  <meta property="og:title" content="Narenj — drop a file, pick a wedge">
+  <meta property="og:description" content="A drag-and-drop converter wheel for video, audio, images, PDFs, documents and archives. Free, open source, offline.">
+  <meta property="og:image" content="https://hastashakiba.github.io/narenj/screenshots/wheel-tools-dark.png">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #fbf7f4;
+      --bg-grad: #fdebe0;
+      --surface: #ffffff;
+      --text: #1f1a17;
+      --muted: #6b625c;
+      --accent: #f25c1f;
+      --accent-ink: #ffffff;
+      --accent-soft: #fde6da;
+      --glow: #ff9a4d;
+      --border: #ece2dc;
+      --code-bg: #f6efea;
+      --shadow: 0 12px 34px rgba(110, 50, 15, 0.12);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #141210;
+        --bg-grad: #2a1a12;
+        --surface: #1e1b19;
+        --text: #f1ebe6;
+        --muted: #a89d95;
+        --accent: #ff7a3d;
+        --accent-ink: #1a0f08;
+        --accent-soft: #3a2316;
+        --glow: #ff6a1f;
+        --border: #302a26;
+        --code-bg: #191614;
+        --shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #141210;
+      --bg-grad: #2a1a12;
+      --surface: #1e1b19;
+      --text: #f1ebe6;
+      --muted: #a89d95;
+      --accent: #ff7a3d;
+      --accent-ink: #1a0f08;
+      --accent-soft: #3a2316;
+      --glow: #ff6a1f;
+      --border: #302a26;
+      --code-bg: #191614;
+      --shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; background: var(--bg); }
+    body {
+      margin: 0;
+      font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Ubuntu, Cantarell, "Noto Sans", sans-serif;
+      color: var(--text);
+      background: linear-gradient(180deg, var(--bg-grad), var(--bg) 560px) no-repeat;
+    }
+    a { color: var(--accent); }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+    nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 19px;
+             color: var(--text); text-decoration: none; }
+    .brand img { width: 34px; height: 34px; }
+    .nav-links { display: flex; gap: 18px; align-items: center; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 15px; }
+    .nav-links a:hover { color: var(--text); }
+
+    .hero { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: center;
+            padding: 36px 0 72px; }
+    .eyebrow { display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: .02em;
+               color: var(--accent); background: var(--accent-soft); padding: 4px 10px;
+               border-radius: 999px; }
+    h1 { font-size: clamp(38px, 6vw, 60px); line-height: 1.06; margin: 16px 0 14px; letter-spacing: -0.02em; }
+    h1 .fa { font-weight: 700; color: var(--muted); font-size: .5em; margin-inline-start: 12px; }
+    .lead { font-size: 19px; color: var(--muted); margin: 0 0 28px; max-width: 33em; }
+    .lead b { color: var(--text); font-weight: 650; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 20px; border-radius: 12px;
+           font-weight: 700; text-decoration: none; border: 1px solid transparent; }
+    .btn-primary { background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow); }
+    .btn-primary:hover { filter: brightness(1.06); }
+    .btn-ghost { background: var(--surface); color: var(--text); border-color: var(--border); }
+    .btn-ghost:hover { border-color: var(--accent); }
+    .meta { margin-top: 14px; font-size: 14px; color: var(--muted); }
+
+    .shot { justify-self: center; position: relative; }
+    .shot img { width: 100%; max-width: 440px; height: auto; display: block;
+                filter: drop-shadow(0 14px 30px rgba(110, 50, 15, 0.16)); }
+    .shot::before { content: ""; position: absolute; inset: 10% 6% 4% 8%; background: var(--glow);
+                    opacity: .45; filter: blur(60px); border-radius: 50%; z-index: -1; }
+
+    section { padding: 60px 0; }
+    h2 { font-size: 32px; margin: 0 0 8px; letter-spacing: -0.01em; }
+    .section-lead { color: var(--muted); margin: 0 0 30px; max-width: 42em; }
+
+    .wheels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .wheel { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 18px;
+             text-align: center; }
+    .wheel img { width: 100%; max-width: 280px; height: auto; display: block; margin: 0 auto 10px;
+                 filter: drop-shadow(0 8px 18px rgba(110, 50, 15, 0.12)); }
+    .wheel h3 { margin: 6px 0 4px; font-size: 18px; }
+    .wheel p { margin: 0; color: var(--muted); font-size: 15px; }
+
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 20px; }
+    .card h3 { margin: 10px 0 6px; font-size: 17px; }
+    .card p { margin: 0; color: var(--muted); font-size: 15px; }
+    .icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+            background: var(--accent-soft); color: var(--accent); font-size: 20px; }
+
+    .formats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 28px; }
+    .format { display: grid; grid-template-columns: 9.5em 1fr; gap: 12px; padding: 12px 0;
+              border-bottom: 1px solid var(--border); }
+    .format b { font-weight: 700; }
+    .format span { color: var(--muted); font-size: 15px; }
+
+    .private { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .private .card.good { border-color: var(--accent); }
+
+    .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .tab { border: 1px solid var(--border); background: var(--surface); color: var(--muted); border-radius: 999px;
+           padding: 8px 16px; font: 700 14px system-ui, sans-serif; cursor: pointer; }
+    .tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+    .panel[hidden] { display: none; }
+    .panel ol { margin: 0; padding-left: 20px; }
+    .panel li { margin: 0 0 10px; }
+    pre { margin: 10px 0 0; background: var(--code-bg); border: 1px solid var(--border); border-radius: 12px;
+          padding: 14px 72px 14px 16px; overflow-x: auto; font-size: 14px; position: relative; }
+    code { font-family: ui-monospace, "Ubuntu Mono", "DejaVu Sans Mono", monospace; }
+    p code, td code, li code { background: var(--code-bg); padding: 1px 6px; border-radius: 6px; font-size: .92em; }
+    .copy { position: absolute; top: 8px; right: 8px; border: 1px solid var(--border); background: var(--surface);
+            color: var(--muted); border-radius: 8px; font: 600 12px system-ui, sans-serif; padding: 4px 8px;
+            cursor: pointer; }
+    .copy:hover { color: var(--text); }
+
+    table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border);
+            border-radius: 14px; overflow: hidden; }
+    td { padding: 11px 16px; border-top: 1px solid var(--border); }
+    tr:first-child td { border-top: none; }
+    td:first-child { width: 38%; white-space: nowrap; }
+    kbd { font: 600 13px ui-monospace, monospace; background: var(--code-bg); border: 1px solid var(--border);
+          border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; }
+
+    footer { padding: 36px 0 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); }
+    footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+
+    @media (max-width: 860px) {
+      .hero { grid-template-columns: 1fr; gap: 32px; padding-top: 16px; }
+      .wheels, .grid { grid-template-columns: 1fr 1fr; }
+      .formats, .private { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      .wheels, .grid { grid-template-columns: 1fr; }
+      .nav-links a.hide-sm { display: none; }
+      .format { grid-template-columns: 1fr; gap: 2px; }
+      td:first-child { white-space: normal; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="brand" href="./"><img src="icon.svg" alt="">Narenj</a>
+      <div class="nav-links">
+        <a class="hide-sm" href="#formats">Formats</a>
+        <a class="hide-sm" href="#install">Install</a>
+        <a href="https://github.com/HAstaShakiba/narenj">GitHub</a>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <div>
+        <span class="eyebrow">Free &amp; open source · Linux · Windows · macOS</span>
+        <h1>Narenj<span class="fa" lang="fa">نارنج</span></h1>
+        <p class="lead">Drop a file on the wheel and pick a wedge. <b>Convert, compress, trim, extract</b>:
+          video, audio, images, PDFs, documents and archives, all on your own computer.</p>
+        <div class="actions">
+          <a class="btn btn-primary" id="download" href="https://github.com/HAstaShakiba/narenj/releases/latest">
+            ⬇ <span id="download-label">Download Narenj</span></a>
+          <a class="btn btn-ghost" href="#install">Other platforms</a>
+        </div>
+        <p class="meta" id="release-meta">Version 1.4.0 · MIT license</p>
+      </div>
+      <div class="shot">
+        <picture>
+          <source srcset="screenshots/wheel-tools-dark.png" media="(prefers-color-scheme: dark)">
+          <img src="screenshots/wheel-tools-light.png" width="440" height="494"
+               alt="The Narenj wheel with its tab bar, showing the Tools wedges: Compress, Trim, Resize, Rotate, Mute, Frame, Normalize and Strip">
+        </picture>
+      </div>
+    </header>
+  </div>
+
+  <section id="wheels">
+    <div class="wrap">
+      <h2>Three wheels, one gesture</h2>
+      <p class="section-lead">Hold <kbd>Shift</kbd>, <kbd>Ctrl</kbd> or <kbd>Alt</kbd> while you drag, or hover
+        a tab above the wheel, and the wedges change under the file before you let go.</p>
+      <div class="wheels">
+        <div class="wheel"><picture><source srcset="screenshots/wheel-convert-dark.png" media="(prefers-color-scheme: dark)"><img src="screenshots/wheel-convert-light.png" alt="Convert wheel" width="440" height="494" loading="lazy"></picture>
+          <h3>Convert <kbd>Shift</kbd></h3><p>Turn a file into another format. The wheel only offers what fits the file.</p></div>
+        <div class="wheel"><picture><source srcset="screenshots/wheel-tools-dark.png" media="(prefers-color-scheme: dark)"><img src="screenshots/wheel-tools-light.png" alt="Tools wheel" width="440" height="494" loading="lazy"></picture>
+          <h3>Tools <kbd>Ctrl</kbd></h3><p>Compress, trim, resize, rotate, extract — the file keeps its format.</p></div>
+        <div class="wheel"><picture><source srcset="screenshots/wheel-actions-dark.png" media="(prefers-color-scheme: dark)"><img src="screenshots/wheel-actions-light.png" alt="Actions wheel" width="440" height="494" loading="lazy"></picture>
+          <h3>Actions <kbd>Alt</kbd></h3><p>Open, reveal, copy the path, zip, join several files, or trash.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="formats">
+    <div class="wrap">
+      <h2>Whatever you drop on it</h2>
+      <p class="section-lead">Results land next to the original with a clear name, and never overwrite
+        anything. A wedge only shows when what it needs is installed.</p>
+      <div class="formats">
+        <div class="format"><b>Video</b><span>MP4, MOV, MKV, WebM, GIF, animated WebP, MP3, subtitles</span></div>
+        <div class="format"><b>Audio</b><span>MP3, M4A, WAV, FLAC, OGG, Opus · normalize, mono</span></div>
+        <div class="format"><b>Images</b><span>PNG, JPG, WebP, BMP, TIFF, ICO · SVG in</span></div>
+        <div class="format"><b>PDF</b><span>Page images, DOCX, text · compress, join</span></div>
+        <div class="format"><b>Documents</b><span>PDF, DOCX, ODT, RTF, TXT, HTML, Markdown, EPUB</span></div>
+        <div class="format"><b>Slides</b><span>PDF, PPTX, ODP</span></div>
+        <div class="format"><b>Spreadsheets</b><span>PDF, XLSX, ODS, CSV</span></div>
+        <div class="format"><b>EPUB</b><span>PDF, DOCX, TXT, HTML, Markdown</span></div>
+        <div class="format"><b>Subtitles</b><span>SRT, VTT, ASS</span></div>
+        <div class="format"><b>Archives</b><span>ZIP, TAR, TAR.GZ · extract RAR and 7z</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <h2>Made to stay out of your way</h2>
+      <p class="section-lead">A round, translucent wheel that floats above your windows and waits for a file.</p>
+      <div class="grid">
+        <div class="card"><div class="icon">◐</div><h3>Glass that fits in</h3>
+          <p>Light and dark themes, and a clear, regular or tinted glass level. Clicks around it pass
+            through to the windows below.</p></div>
+        <div class="card"><div class="icon">⌘</div><h3>One shortcut</h3>
+          <p><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>N</kbd> shows and hides the wheel from anywhere. Change it in
+            the settings.</p></div>
+        <div class="card"><div class="icon">⇣</div><h3>Compress, same format</h3>
+          <p>A PNG stays a PNG, a WAV a WAV, an MP4 an MP4: only smaller. FLAC and TIFF stay lossless.</p></div>
+        <div class="card"><div class="icon">⧉</div><h3>Many files at once</h3>
+          <p>Drop several files to convert them all, or join videos, songs and PDFs end to end.</p></div>
+        <div class="card"><div class="icon">◔</div><h3>Progress on the wheel</h3>
+          <p>A ring around the centre fills as ffmpeg works, and you are told when the result is ready.</p></div>
+        <div class="card"><div class="icon">⎋</div><h3>Keyboard friendly</h3>
+          <p>Arrow keys pick a wedge, <kbd>Enter</kbd> runs it, <kbd>Esc</kbd> clears the file.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="private">
+    <div class="wrap">
+      <h2>Your files never leave your computer</h2>
+      <p class="section-lead">Online converters need your file on their server first. Narenj runs ffmpeg,
+        LibreOffice and friends right where your files already are.</p>
+      <div class="private">
+        <div class="card"><div class="icon">☁</div><h3>Online converters</h3>
+          <p>Upload, wait, download, and hope the copy on their server is deleted. Size limits, queues and ads.</p></div>
+        <div class="card good"><div class="icon">✓</div><h3>Narenj</h3>
+          <p>Drop and done. No account, no upload, no size limit, and it works offline.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap">
+      <h2>Install</h2>
+      <p class="section-lead">Version 1.4.0. Older versions are on the
+        <a href="https://github.com/HAstaShakiba/narenj/releases">releases page</a>.</p>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-panel="windows">Windows</button>
+        <button class="tab" role="tab" aria-selected="false" data-panel="macos">macOS</button>
+        <button class="tab" role="tab" aria-selected="false" data-panel="linux">Ubuntu / Debian</button>
+        <button class="tab" role="tab" aria-selected="false" data-panel="brew">Homebrew</button>
+      </div>
+      <div class="card panel" id="windows">
+        <h3>Windows 10 and 11</h3>
+        <ol>
+          <li><a href="https://github.com/HAstaShakiba/narenj/releases/download/v1.4.0/narenj-1.4.0-setup.exe">Download narenj-1.4.0-setup.exe</a> and run it. It installs for your user,
+            without admin rights, and brings its own Python, GTK and ffmpeg.</li>
+          <li>Press <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>N</kbd> to open the wheel and again to close it.</li>
+          <li>For documents, slides and spreadsheets, install <a href="https://www.libreoffice.org/">LibreOffice</a>;
+            for Markdown and EPUB, <a href="https://pandoc.org/installing.html">pandoc</a>. Narenj finds them.</li>
+        </ol>
+      </div>
+      <div class="card panel" id="macos" hidden>
+        <h3>macOS on Apple Silicon</h3>
+        <ol>
+          <li><a href="https://github.com/HAstaShakiba/narenj/releases/download/v1.4.0/narenj-1.4.0-macos.dmg">Download narenj-1.4.0-macos.dmg</a>, open it and drag Narenj to Applications.</li>
+          <li>The app is not signed with an Apple Developer ID, so the first time open
+            <b>System Settings › Privacy &amp; Security</b> and click <b>Open Anyway</b>, or run:
+            <pre><code>xattr -dr com.apple.quarantine /Applications/Narenj.app</code></pre></li>
+          <li><kbd>Control</kbd> <kbd>Option</kbd> <kbd>N</kbd> shows and hides the wheel while it runs.</li>
+        </ol>
+      </div>
+      <div class="card panel" id="linux" hidden>
+        <h3>Ubuntu 22.04+ and Debian, from the apt repository</h3>
+        <pre><code>sudo install -d -m 0755 /etc/apt/keyrings
 curl -fsSL https://hastashakiba.github.io/narenj/narenj-archive-keyring.gpg | sudo tee /etc/apt/keyrings/narenj.gpg &gt;/dev/null
 echo "deb [signed-by=/etc/apt/keyrings/narenj.gpg] https://hastashakiba.github.io/narenj stable main" | sudo tee /etc/apt/sources.list.d/narenj.list
-sudo apt update
-sudo apt install narenj
-narenj --setup</pre>
-<p>Then log out and back in once so GNOME Shell loads the always-on-top extension.
-Updates arrive with <code>sudo apt upgrade</code>.</p>
-</body></html>
+sudo apt update &amp;&amp; sudo apt install narenj
+narenj --setup</code></pre>
+        <p style="margin-top:12px">Log out and back in once so GNOME Shell loads the always-on-top extension.
+          Updates arrive with <code>sudo apt upgrade</code>.</p>
+      </div>
+      <div class="card panel" id="brew" hidden>
+        <h3>macOS with Homebrew (Apple Silicon and Intel)</h3>
+        <pre><code>brew tap hastashakiba/narenj https://github.com/HAstaShakiba/narenj
+brew install narenj
+narenj</code></pre>
+        <p style="margin-top:12px">Homebrew brings GTK, Python, ffmpeg, pandoc and poppler. For Office files add
+          <code>brew install --cask libreoffice</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="shortcuts">
+    <div class="wrap">
+      <h2>Keyboard</h2>
+      <table>
+        <tr><td><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>N</kbd></td><td>Show or hide the wheel (Control Option N on macOS)</td></tr>
+        <tr><td><kbd>Shift</kbd> / <kbd>Ctrl</kbd> / <kbd>Alt</kbd></td><td>Convert, Tools or Actions wheel, also while dragging</td></tr>
+        <tr><td><kbd>←</kbd> <kbd>→</kbd> and <kbd>Enter</kbd></td><td>Pick a wedge and run it</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Clear the loaded file</td></tr>
+        <tr><td><kbd>Ctrl</kbd> <kbd>,</kbd></td><td>Settings</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>Inspired by Tangerine and FanDrop for the Mac. Narenj is an independent project, not affiliated with them.</span>
+      <span>MIT license · <a href="https://github.com/HAstaShakiba/narenj">Source on GitHub</a></span>
+    </div>
+  </footer>
+
+  <script>
+    // The main button downloads for the visitor's system; the GitHub API fills in the newest files.
+    const platform = /Windows/i.test(navigator.userAgent) ? "windows"
+      : /Mac/i.test(navigator.platform || navigator.userAgent) ? "macos"
+      : /Linux|X11/i.test(navigator.userAgent) ? "linux" : null;
+    const button = document.getElementById("download");
+    const label = document.getElementById("download-label");
+    const fallback = { windows: "https://github.com/HAstaShakiba/narenj/releases/download/v1.4.0/narenj-1.4.0-setup.exe", macos: "https://github.com/HAstaShakiba/narenj/releases/download/v1.4.0/narenj-1.4.0-macos.dmg", linux: "#install" };
+    const names = { windows: "Download for Windows", macos: "Download for macOS", linux: "Install on Ubuntu / Debian" };
+    if (platform) {
+      button.href = fallback[platform];
+      label.textContent = names[platform];
+      showPanel(platform);
+    }
+
+    (async () => {
+      try {
+        const res = await fetch("https://api.github.com/repos/HAstaShakiba/narenj/releases/latest");
+        if (!res.ok) return;
+        const release = await res.json();
+        const assets = release.assets || [];
+        const find = suffix => assets.find(a => a.name.endsWith(suffix));
+        const asset = platform === "windows" ? find("-setup.exe") : platform === "macos" ? find("-macos.dmg") : null;
+        if (asset) button.href = asset.browser_download_url;
+        const size = asset ? ` · ${Math.round(asset.size / 1048576)} MB` : "";
+        document.getElementById("release-meta").textContent =
+          `Version ${release.tag_name.replace(/^v/, "")}${size} · MIT license`;
+      } catch (e) { /* keep the links built into the page */ }
+    })();
+
+    // Install tabs.
+    function showPanel(id) {
+      for (const tab of document.querySelectorAll(".tab")) {
+        tab.setAttribute("aria-selected", String(tab.dataset.panel === id));
+      }
+      for (const panel of document.querySelectorAll(".panel")) panel.hidden = panel.id !== id;
+    }
+    for (const tab of document.querySelectorAll(".tab")) {
+      tab.addEventListener("click", () => showPanel(tab.dataset.panel));
+    }
+
+    // Copy buttons on code blocks.
+    for (const pre of document.querySelectorAll("pre")) {
+      const copy = document.createElement("button");
+      copy.className = "copy";
+      copy.textContent = "Copy";
+      copy.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(pre.querySelector("code").innerText.trim());
+          copy.textContent = "Copied";
+          setTimeout(() => (copy.textContent = "Copy"), 1500);
+        } catch (e) { copy.textContent = "Select & copy"; }
+      });
+      pre.appendChild(copy);
+    }
+  </script>
+</body>
+</html>
