@@ -75,11 +75,17 @@ DMG="https://github.com/HAstaShakiba/narenj/releases/download/v$VERSION/narenj-$
 sed -e "s|@VERSION@|$VERSION|g" -e "s|@SETUP@|$SETUP|g" -e "s|@DMG@|$DMG|g" -e "s|@URL@|$URL|g" \
     "$SRC/packaging/site/index.html" > index.html
 cp "$SRC/narenj.svg" icon.svg
-mkdir -p screenshots
-rm -f screenshots/*.png
+rm -rf screenshots
 # the distribution's own Python, which has PyGObject even when python3 points elsewhere
 PY="$(sed -n 's/^default-version *= *//p' /usr/share/python3/debian_defaults 2>/dev/null)"
-"${PY:-python3}" "$SRC/packaging/site/render-wheels.py" screenshots
+"${PY:-python3}" "$SRC/packaging/site/render-wheels.py" .
+# for search engines: submit @URL@/sitemap.xml in Google Search Console and Bing Webmaster Tools
+cat > sitemap.xml <<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>$URL/</loc><lastmod>$(date -u +%Y-%m-%d)</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url>
+</urlset>
+XML
 
 if [ -n "$DRY" ]; then
     echo "Built $SITE (not published)."

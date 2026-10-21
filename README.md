@@ -1,9 +1,14 @@
-# Narenj
+# Narenj — a free Tangerine alternative for Windows and Linux
 
-A drag-and-drop ffmpeg wheel for GNOME, Windows and macOS, inspired by [Tangerine](https://tangerineformac.com/) and FanDrop on macOS.
+**Narenj** (نارنج) is a free, open-source, drag-and-drop file converter for **Windows**, **Linux** and
+**macOS**: a Tangerine and FanDrop alternative for the systems those Mac apps don't run on.
 
 Drag a file onto the wheel and drop it on a wedge: Narenj converts, compresses, trims or otherwise
-processes it with ffmpeg and saves the result next to the original. Everything runs locally.
+processes video, audio, images, PDFs, documents, slides, spreadsheets, e-books, subtitles and
+archives, and saves the result next to the original. Everything runs on your own computer, offline.
+
+**[Download and install →](https://hastashakiba.github.io/narenj/)** · Windows installer · macOS
+app · apt repository for Ubuntu and Debian · Homebrew
 
 <p align="center">
   <img src="Screenshot/convert.png" width="32%" alt="Convert wheel">

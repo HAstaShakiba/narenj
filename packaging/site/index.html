@@ -3,12 +3,73 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Narenj — drop a file, pick a wedge</title>
-  <meta name="description" content="Narenj is a drag-and-drop file converter for Linux, Windows and macOS. Drop a file on the wheel to convert, compress or trim video, audio, images, PDFs, documents and archives, all on your own computer.">
-  <meta property="og:title" content="Narenj — drop a file, pick a wedge">
-  <meta property="og:description" content="A drag-and-drop converter wheel for video, audio, images, PDFs, documents and archives. Free, open source, offline.">
-  <meta property="og:image" content="@URL@/screenshots/wheel-tools-dark.png">
+  <title>Narenj — free Tangerine alternative for Windows &amp; Linux · drag-and-drop file converter</title>
+  <meta name="description" content="Narenj is a free, open-source alternative to Tangerine and FanDrop for Windows, Linux and macOS. Drag a file onto the wheel to convert, compress or trim video, audio, images, PDFs, documents and archives offline, on your own computer.">
+  <meta name="keywords" content="Tangerine alternative, Tangerine for Windows, Tangerine for Linux, FanDrop alternative, free file converter, drag and drop file converter, offline file converter, ffmpeg GUI, video converter, PDF converter, image compressor, Windows, Linux, macOS">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <link rel="canonical" href="@URL@/">
+  <link rel="sitemap" type="application/xml" href="@URL@/sitemap.xml">
+  <meta name="theme-color" content="#f25c1f">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Narenj">
+  <meta property="og:url" content="@URL@/">
+  <meta property="og:title" content="Narenj — the free Tangerine alternative for Windows and Linux">
+  <meta property="og:description" content="Drag a file onto the wheel to convert, compress or trim it: video, audio, images, PDFs, documents and archives. Free, open source and offline, for Windows, Linux and macOS.">
+  <meta property="og:image" content="@URL@/social-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The Narenj converter wheel next to the words: the free Tangerine alternative for Windows and Linux">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Narenj — the free Tangerine alternative for Windows and Linux">
+  <meta name="twitter:description" content="A drag-and-drop file converter wheel. Free, open source, offline.">
+  <meta name="twitter:image" content="@URL@/social-card.png">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="social-icon.png">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Narenj",
+    "alternateName": "نارنج",
+    "description": "A free, open-source drag-and-drop file converter for Windows, Linux and macOS, and an alternative to Tangerine and FanDrop. It converts, compresses and trims video, audio, images, PDFs, documents, spreadsheets, slides, e-books, subtitles and archives offline.",
+    "url": "@URL@/",
+    "applicationCategory": "MultimediaApplication",
+    "applicationSubCategory": "File converter",
+    "operatingSystem": "Windows 10, Windows 11, Linux, Ubuntu, Debian, macOS",
+    "softwareVersion": "@VERSION@",
+    "license": "https://opensource.org/licenses/MIT",
+    "isAccessibleForFree": true,
+    "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+    "downloadUrl": "https://github.com/HAstaShakiba/narenj/releases/latest",
+    "installUrl": "@URL@/#install",
+    "screenshot": "@URL@/screenshots/wheel-tools-light.png",
+    "image": "@URL@/social-card.png",
+    "codeRepository": "https://github.com/HAstaShakiba/narenj",
+    "sameAs": ["https://github.com/HAstaShakiba/narenj"],
+    "featureList": ["Drag-and-drop conversion wheel", "Video, audio and image conversion with ffmpeg",
+      "Compress files without changing their format", "PDF to images, Word or text; compress and join PDFs",
+      "Documents, slides, spreadsheets and EPUB with LibreOffice and pandoc", "Subtitles and archives",
+      "Works offline; files never leave the computer"]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {"@type": "Question", "name": "Is there a Tangerine for Windows or Linux?",
+       "acceptedAnswer": {"@type": "Answer", "text": "Tangerine is a Mac app. Narenj works the same way, dragging a file onto a wheel of conversions, and runs on Windows 10 and 11, Linux (Ubuntu, Debian and other GNOME desktops) and macOS."}},
+      {"@type": "Question", "name": "Is Narenj free?",
+       "acceptedAnswer": {"@type": "Answer", "text": "Yes. Narenj is free and open source under the MIT license, with no account, no limits and no ads."}},
+      {"@type": "Question", "name": "Does Narenj upload my files?",
+       "acceptedAnswer": {"@type": "Answer", "text": "No. Every conversion runs on your own computer with ffmpeg, LibreOffice, pandoc and poppler. It works offline."}},
+      {"@type": "Question", "name": "Which formats can Narenj convert?",
+       "acceptedAnswer": {"@type": "Answer", "text": "Video (MP4, MOV, MKV, WebM, GIF), audio (MP3, M4A, WAV, FLAC, OGG, Opus), images (PNG, JPG, WebP, BMP, TIFF, ICO, SVG), PDF, documents (DOCX, ODT, RTF, TXT, Markdown, HTML), slides, spreadsheets, EPUB, subtitles (SRT, VTT, ASS) and archives (ZIP, TAR, GZIP, RAR, 7z)."}},
+      {"@type": "Question", "name": "Is Narenj related to Tangerine or FanDrop?",
+       "acceptedAnswer": {"@type": "Answer", "text": "No. Narenj is an independent project inspired by them; it is not affiliated with their makers."}}
+    ]
+  }
+  </script>
   <style>
     :root {
       --bg: #fbf7f4;
@@ -150,6 +211,11 @@
     kbd { font: 600 13px ui-monospace, monospace; background: var(--code-bg); border: 1px solid var(--border);
           border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; }
 
+    .faq details { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+                   padding: 14px 18px; margin-bottom: 10px; }
+    .faq summary { font-weight: 700; cursor: pointer; }
+    .faq details p { margin: 10px 0 2px; color: var(--muted); }
+
     footer { padding: 36px 0 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); }
     footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
 
@@ -179,10 +245,11 @@
 
     <header class="hero">
       <div>
-        <span class="eyebrow">Free &amp; open source · Linux · Windows · macOS</span>
+        <span class="eyebrow">Free Tangerine alternative · Windows · Linux · macOS</span>
         <h1>Narenj<span class="fa" lang="fa">نارنج</span></h1>
         <p class="lead">Drop a file on the wheel and pick a wedge. <b>Convert, compress, trim, extract</b>:
-          video, audio, images, PDFs, documents and archives, all on your own computer.</p>
+          video, audio, images, PDFs, documents and archives, all on your own computer. Free and open
+          source, like Tangerine for the Mac, but on Windows and Linux too.</p>
         <div class="actions">
           <a class="btn btn-primary" id="download" href="https://github.com/HAstaShakiba/narenj/releases/latest">
             ⬇ <span id="download-label">Download Narenj</span></a>
@@ -255,6 +322,23 @@
           <p>A ring around the centre fills as ffmpeg works, and you are told when the result is ready.</p></div>
         <div class="card"><div class="icon">⎋</div><h3>Keyboard friendly</h3>
           <p>Arrow keys pick a wedge, <kbd>Enter</kbd> runs it, <kbd>Esc</kbd> clears the file.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="alternative">
+    <div class="wrap">
+      <h2>A free Tangerine alternative for Windows and Linux</h2>
+      <p class="section-lead">Tangerine and FanDrop made converting a file as quick as dragging it onto a wheel,
+        but only on the Mac. Narenj brings the same gesture to <b>Windows 10 and 11</b>, to <b>Linux</b>
+        (Ubuntu, Debian and other GNOME desktops) and to macOS, for free.</p>
+      <div class="grid">
+        <div class="card"><div class="icon">⊞</div><h3>Windows</h3>
+          <p>A one-click installer with everything inside: Python, GTK and ffmpeg. No admin rights needed.</p></div>
+        <div class="card"><div class="icon">🐧</div><h3>Linux</h3>
+          <p>An apt repository for Ubuntu and Debian, so updates come with the rest of your system.</p></div>
+        <div class="card"><div class="icon">⌘</div><h3>macOS</h3>
+          <p>A drag-to-Applications disk image for Apple Silicon, or Homebrew on any Mac.</p></div>
       </div>
     </div>
   </section>
@@ -335,6 +419,29 @@ narenj</code></pre>
         <tr><td><kbd>Esc</kbd></td><td>Clear the loaded file</td></tr>
         <tr><td><kbd>Ctrl</kbd> <kbd>,</kbd></td><td>Settings</td></tr>
       </table>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <h2>Questions</h2>
+      <div class="faq">
+        <details><summary>Is there a Tangerine for Windows or Linux?</summary>
+          <p>Tangerine is a Mac app. Narenj works the same way, dragging a file onto a wheel of conversions,
+            and runs on Windows 10 and 11, Linux (Ubuntu, Debian and other GNOME desktops) and macOS.</p></details>
+        <details><summary>Is Narenj free?</summary>
+          <p>Yes. Narenj is free and open source under the MIT license, with no account, no limits and no ads.</p></details>
+        <details><summary>Does Narenj upload my files?</summary>
+          <p>No. Every conversion runs on your own computer with ffmpeg, LibreOffice, pandoc and poppler. It
+            works offline.</p></details>
+        <details><summary>Which formats can Narenj convert?</summary>
+          <p>Video (MP4, MOV, MKV, WebM, GIF), audio (MP3, M4A, WAV, FLAC, OGG, Opus), images (PNG, JPG, WebP,
+            BMP, TIFF, ICO, SVG), PDF, documents (DOCX, ODT, RTF, TXT, Markdown, HTML), slides, spreadsheets,
+            EPUB, subtitles (SRT, VTT, ASS) and archives (ZIP, TAR, GZIP, RAR, 7z). See the
+            <a href="#formats">full list</a>.</p></details>
+        <details><summary>Is Narenj related to Tangerine or FanDrop?</summary>
+          <p>No. Narenj is an independent project inspired by them; it is not affiliated with their makers.</p></details>
+      </div>
     </div>
   </section>
 
