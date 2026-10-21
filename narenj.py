@@ -635,9 +635,23 @@ HOT_SCALE = 1.0      # Tangerine's hot tile does not grow
 SPIN_FROM = math.radians(-40)  # FanDrop-style turn-in when the wheel opens
 
 
+# the tab bar above the wheel: three joined mode tabs, then a small close tab on the right
+BAR_TOP, BAR_H, BAR_GAP = 8, 40, 6
+WHEEL_TOP = BAR_TOP + BAR_H + BAR_GAP
+TAB_W, CLOSE_D, CLOSE_GAP = 98, 36, 10
+
+
+def bar_layout(w):
+    """((cx, cy, r) of the close tab, [(mode, x, y, width, height)] of the joined mode tabs)."""
+    x = (w - (TAB_W * len(MODES) + CLOSE_GAP + CLOSE_D)) / 2
+    tabs = [(mode, x + i * TAB_W, BAR_TOP, TAB_W, BAR_H) for i, mode in enumerate(MODES)]
+    close_x = x + TAB_W * len(MODES) + CLOSE_GAP
+    return (close_x + CLOSE_D / 2, BAR_TOP + BAR_H / 2, CLOSE_D / 2), tabs
+
+
 def wheel_geometry(w, h, open_t):
-    cx, cy = w / 2, h / 2
-    full = (min(w, h) / 2 - 18) / HOT_SCALE
+    cx, cy = w / 2, WHEEL_TOP + (h - WHEEL_TOP) / 2
+    full = (min(w, h - WHEEL_TOP) / 2 - 18) / HOT_SCALE
     inner = full * TILE_INNER
     outer = inner + (full - inner) * open_t
     return cx, cy, inner, outer
@@ -723,11 +737,14 @@ def wedge_path(cr, cx, cy, ri, ro, a0, a1, gap, radius):
 
 
 def _rounded_shape(cr, radius):
-    """Fill + wide round stroke of the current (shrunk) path = the rounded tile."""
+    """Fill + wide round stroke of the current (shrunk) path = the rounded tile; a plain line
+    becomes a capsule."""
     cr.fill_preserve()
     cr.set_line_width(radius * 2)
     cr.set_line_join(cairo.LINE_JOIN_ROUND)
+    cr.set_line_cap(cairo.LINE_CAP_ROUND)
     cr.stroke()
+    cr.set_line_cap(cairo.LINE_CAP_BUTT)
 
 
 def _edge(cr, make_path, radius, source, width):
@@ -741,7 +758,9 @@ def _edge(cr, make_path, radius, source, width):
     make_path()
     cr.fill_preserve()
     cr.set_line_width(max(0.1, radius * 2 - width * 2))
+    cr.set_line_cap(cairo.LINE_CAP_ROUND)  # matches the capsule's round ends
     cr.stroke()
+    cr.set_line_cap(cairo.LINE_CAP_BUTT)
     cr.set_operator(cairo.OPERATOR_OVER)
     return cr.pop_group()
 
@@ -841,9 +860,70 @@ def palette(dark, glass="regular"):
     return pal
 
 
+CLOSE_RED = (0.91, 0.26, 0.33)
+
+
+def draw_bar(cr, w, s, pal):
+    """The close tab and the three joined mode tabs above the wheel, in the wheel's glass."""
+    (ccx, ccy, cr_), tabs = bar_layout(w)
+    hot = getattr(s, "bar_hover", None)
+    fg = pal["text"]
+
+    # close tab: a glass disc that turns red under the pointer
+    disc = (lambda: (cr.new_path(), cr.arc(ccx, ccy, 0.01, 0, 2 * math.pi)))
+    if hot == "close":
+        _glass(cr, disc, cr_, cairo.SolidPattern(*CLOSE_RED), 0.95, 0.5, ccy - cr_, ccy + cr_)
+    else:
+        _glass(cr, disc, cr_, _vertical(pal["tint_top"], pal["tint_bottom"], ccy - cr_, ccy + cr_),
+               pal["tile_alpha"], pal["rim"], ccy - cr_, ccy + cr_)
+    _rgb(cr, (1, 1, 1) if hot == "close" else fg)
+    cr.set_line_width(2.2)
+    cr.set_line_cap(cairo.LINE_CAP_ROUND)
+    arm = cr_ * 0.3
+    cr.move_to(ccx - arm, ccy - arm)
+    cr.line_to(ccx + arm, ccy + arm)
+    cr.move_to(ccx + arm, ccy - arm)
+    cr.line_to(ccx - arm, ccy + arm)
+    cr.stroke()
+    cr.set_line_cap(cairo.LINE_CAP_BUTT)
+
+    # mode tabs: one glass capsule, the current mode a solid accent capsule inside it
+    _, x0, y0, _, th = tabs[0]
+    x1 = tabs[-1][1] + tabs[-1][3]
+    r = th / 2
+    _glass(cr, lambda: (cr.new_path(), cr.move_to(x0 + r, y0 + r), cr.line_to(x1 - r, y0 + r)), r,
+           _vertical(pal["tint_top"], pal["tint_bottom"], y0, y0 + th), pal["tile_alpha"], pal["rim"],
+           y0, y0 + th)
+    current = MODES.index(s.mode)
+    for i, (mode, x, y, tw, _) in enumerate(tabs):
+        inset, ri = 3, r - 3
+        if i == current or mode == hot:
+            cr.set_line_width(ri * 2)
+            cr.set_line_cap(cairo.LINE_CAP_ROUND)
+            cr.move_to(x + inset + ri, y + r)
+            cr.line_to(x + tw - inset - ri, y + r)
+            if i == current:
+                _rgb(cr, MODE_ACCENT[mode][1], 0.95)
+            else:
+                _rgb(cr, fg, 0.10)
+            cr.stroke()
+            cr.set_line_cap(cairo.LINE_CAP_BUTT)
+        elif i > 0 and i - 1 != current and tabs[i - 1][0] != hot:
+            # hairline between two plain tabs
+            _rgb(cr, fg, 0.15)
+            cr.set_line_width(1)
+            cr.move_to(x + 0.5, y + 11)
+            cr.line_to(x + 0.5, y + th - 11)
+            cr.stroke()
+        color = (1, 1, 1) if i == current else fg
+        _show_text(cr, _caps(cr, MODE_TITLES[mode], 9.5, tw - 10), x + tw / 2, y + r, color, 1.0)
+
+
 def draw_wheel(cr, w, h, s, dark):
-    """Paint the wheel. `s` carries mode, items, hover, files, open_t, drag_active, busy, progress, flash."""
+    """Paint the tab bar and the wheel. `s` carries mode, items, hover, files, open_t, drag_active,
+    busy, progress, flash and bar_hover."""
     pal = palette(dark, getattr(s, "glass", "regular"))
+    draw_bar(cr, w, s, pal)
     scale = getattr(s, "scale", 1)
     cx, cy, r0, R = wheel_geometry(w, h, s.open_t)
     accent = MODE_ACCENT[s.mode][1]
@@ -1018,6 +1098,7 @@ class Wheel(Gtk.DrawingArea):
         self.ext = ""
         self.items = []
         self.hover = None
+        self.bar_hover = None  # "close", a mode, or None
         self.open_t = 0.88
         self.spin = 0.0
         self.drag_active = False
@@ -1035,7 +1116,7 @@ class Wheel(Gtk.DrawingArea):
         self._shell_keys = True
         self._polled_mode = None
         self._reset_drag_keys()
-        self.set_size_request(440, 440)
+        self.set_size_request(440, 440 + WHEEL_TOP)
         self.set_focusable(True)
         self.set_cursor(Gdk.Cursor.new_from_name("pointer"))
         self.set_draw_func(self._draw)
@@ -1052,7 +1133,7 @@ class Wheel(Gtk.DrawingArea):
 
         motion = Gtk.EventControllerMotion()
         motion.connect("motion", self._on_pointer_motion)
-        motion.connect("leave", lambda _c: self._set_hover(None))
+        motion.connect("leave", lambda _c: self._set_hover(None, None))
         self.add_controller(motion)
 
         click = Gtk.GestureClick()
@@ -1150,10 +1231,21 @@ class Wheel(Gtk.DrawingArea):
         ang = math.atan2(y - cy, x - cx) - self.spin
         return int(((ang + math.pi / 2 + step / 2) % (2 * math.pi)) / step) % len(self.items)
 
-    def _set_hover(self, idx):
-        if idx != self.hover:
+    def _set_hover(self, idx, bar=None):
+        if idx != self.hover or bar != self.bar_hover:
             self.hover = idx
+            self.bar_hover = bar
             self.queue_draw()
+
+    def hit_bar(self, x, y):
+        """"close", the mode of the tab under (x, y), or None."""
+        (ccx, ccy, r), tabs = bar_layout(self.get_width())
+        if math.hypot(x - ccx, y - ccy) <= r + 2:
+            return "close"
+        for mode, tx, ty, tw, th in tabs:
+            if tx <= x <= tx + tw and ty <= y <= ty + th:
+                return mode
+        return None
 
     def move_hover(self, delta):
         if self.items:
@@ -1161,7 +1253,7 @@ class Wheel(Gtk.DrawingArea):
             self._set_hover((base + delta) % len(self.items))
 
     def update_input_region(self):
-        """Clicks and drops outside the round wheel fall through to the desktop."""
+        """Clicks and drops outside the tab bar and the round wheel fall through to the desktop."""
         native = self.get_native()
         surface = native.get_surface() if native else None
         if not surface:
@@ -1169,7 +1261,10 @@ class Wheel(Gtk.DrawingArea):
         w, h = self.get_width(), self.get_height()
         cx, cy, _, R = wheel_geometry(w, h, 1.0)
         R += 12
-        rects = []
+        (ccx, ccy, r), tabs = bar_layout(w)
+        rects = [cairo.RectangleInt(int(ccx - r), int(ccy - r), int(2 * r) + 1, int(2 * r) + 1),
+                 cairo.RectangleInt(int(tabs[0][1]), int(tabs[0][2]),
+                                    int(tabs[-1][1] + tabs[-1][3] - tabs[0][1]) + 1, int(tabs[0][4]) + 1)]
         band = 4
         y = int(cy - R)
         while y < cy + R:
@@ -1211,12 +1306,20 @@ class Wheel(Gtk.DrawingArea):
     # pointer
 
     def _on_pointer_motion(self, _ctrl, x, y):
-        self._set_hover(self.hit(x, y))
+        bar = self.hit_bar(x, y)
+        self._set_hover(None if bar else self.hit(x, y), bar)
 
     def _on_click(self, _gesture, _n, x, y):
         if self._moved:
             return
         self.grab_focus()
+        bar = self.hit_bar(x, y)
+        if bar == "close":
+            self.win.get_application().close_wheel()
+            return
+        if bar:
+            self.win.set_mode(bar)
+            return
         idx = self.hit(x, y)
         if idx == -1:
             self.win.choose_files()
@@ -1262,7 +1365,10 @@ class Wheel(Gtk.DrawingArea):
                 self.refresh()
         self._start_key_poll()
         self._track_drag_keys(target)
-        self._set_hover(self.hit(x, y))
+        bar = self.hit_bar(x, y)
+        if bar in MODES:
+            self.win.set_mode(bar)  # hovering a tab with a file switches to that wheel
+        self._set_hover(None if bar else self.hit(x, y), bar if bar in MODES else None)
         # LINK as the no-modifier choice keeps it distinct from the Shift/Ctrl/Alt actions
         return Gdk.DragAction.LINK
 
@@ -1340,6 +1446,7 @@ class Wheel(Gtk.DrawingArea):
 
     def _on_drag_leave(self, _target):
         self.drag_active = False
+        self.bar_hover = None
         self._reset_drag_keys()
         self.drag_sample = None
         self.hover = None
@@ -1354,7 +1461,8 @@ class Wheel(Gtk.DrawingArea):
         if not files:
             self.win.toast("Only local files")
             return False
-        idx = self.hit(x, y)
+        idx = None if self.hit_bar(x, y) else self.hit(x, y)
+        self.bar_hover = None
         self.set_files(files)
         if idx is not None and 0 <= idx < len(self.items):
             self.win.apply(self.items[idx], files)
@@ -1891,6 +1999,13 @@ class App(Adw.Application):
                 self.activate_action("toggle", None)
                 return 0
         return -1
+
+    def close_wheel(self):
+        """The close tab: quit, or only hide while ffmpeg is still busy."""
+        if self.win and self.win.jobs:
+            self.win.set_visible(False)
+        else:
+            self.quit()
 
     def toggle(self):
         if not self.win or not self.win.get_visible():

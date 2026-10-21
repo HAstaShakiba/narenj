@@ -28,6 +28,8 @@ subtitle track.
 ## Using it
 
 - **Ctrl+Alt+N** opens the wheel; pressing it again closes it.
+- The tabs above the wheel switch between Convert, Tools and Actions (hold a dragged file over one
+  to switch); the × next to them closes Narenj.
 - Drop a file on a wedge to run it, or on the centre to load the file and then click a wedge.
 - Click the centre to pick files; drag the centre to move the wheel.
 - Right-click for the menu: choose files, settings, glass level (clear / regular / tinted), cancel jobs, quit.
