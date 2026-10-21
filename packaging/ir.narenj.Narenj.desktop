@@ -7,6 +7,6 @@ Exec=narenj %F
 Icon=ir.narenj.Narenj
 Terminal=false
 Categories=AudioVideo;Video;AudioVideoEditing;
-MimeType=video/mp4;video/quicktime;video/x-matroska;video/webm;video/x-msvideo;image/gif;audio/mpeg;audio/mp4;audio/x-wav;audio/flac;audio/ogg;image/png;image/jpeg;image/webp;image/svg+xml;
+MimeType=video/mp4;video/quicktime;video/x-matroska;video/webm;video/x-msvideo;image/gif;audio/mpeg;audio/mp4;audio/x-wav;audio/flac;audio/ogg;image/png;image/jpeg;image/webp;image/svg+xml;application/pdf;text/plain;text/markdown;text/html;application/vnd.openxmlformats-officedocument.wordprocessingml.document;application/vnd.oasis.opendocument.text;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;application/vnd.openxmlformats-officedocument.presentationml.presentation;text/csv;application/epub+zip;application/x-subrip;application/zip;application/x-compressed-tar;
 Keywords=ffmpeg;convert;compress;gif;mp3;video;audio;
 StartupWMClass=ir.narenj.Narenj

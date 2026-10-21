@@ -4,16 +4,21 @@
 Drop a file on the wheel, pick a wedge, and ffmpeg does the rest.
 Three wheels, like Tangerine/FanDrop: Convert (Shift), Tools (Ctrl), Actions (Alt).
 """
+import bz2
+import gzip
 import hashlib
 import json
+import lzma
 import math
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import threading
+import zipfile
 
 IS_WINDOWS = sys.platform == "win32"
 IS_MAC = sys.platform == "darwin"
@@ -50,6 +55,25 @@ FFPROBE = shutil.which("ffprobe")
 # keep ffmpeg/ffprobe from flashing a console window on Windows
 NO_CONSOLE = {"creationflags": subprocess.CREATE_NO_WINDOW} if IS_WINDOWS else {}
 DEBUG = bool(os.environ.get("NARENJ_DEBUG"))
+
+
+def _find_tool(*names, paths=()):
+    found = next((p for p in map(shutil.which, names) if p), None)
+    return found or next((p for p in paths if p and os.path.exists(p)), None)
+
+
+_PROGRAM_FILES = [os.environ.get(v) for v in ("ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA")]
+# documents: LibreOffice (office formats, PDF out), pandoc (Markdown, EPUB), poppler (PDF in),
+# Ghostscript (PDF compression); found on PATH or where their installers put them
+SOFFICE = _find_tool("soffice", "libreoffice", paths=[
+    "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+    *(os.path.join(d, "LibreOffice", "program", "soffice.exe") for d in _PROGRAM_FILES if d)])
+PANDOC = _find_tool("pandoc", paths=[os.path.join(d, "Pandoc", "pandoc.exe") for d in _PROGRAM_FILES if d])
+PDFTOTEXT, PDFTOPPM, PDFUNITE = (_find_tool(name) for name in ("pdftotext", "pdftoppm", "pdfunite"))
+GHOSTSCRIPT = _find_tool("gs", "gswin64c")
+# archives Python cannot read itself (RAR, 7z): bsdtar, which is the plain tar on Windows and macOS
+BSDTAR = _find_tool("bsdtar") or (shutil.which("tar") if IS_WINDOWS or IS_MAC else None)
+SEVENZIP = _find_tool("7z", "7za", "7zz")
 SETTINGS_PATH = os.path.join(GLib.get_user_config_dir(), "narenj", "settings.json")
 # the same helper in GNOME 42-44's and GNOME 45+'s extension formats; Shell loads the one that fits
 EXTENSION_UUIDS = ("narenj@narenj.ir", "narenj-gnome45@narenj.ir")
@@ -57,6 +81,8 @@ SHORTCUT_PATH = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybinding
 SHORTCUT = "<Control><Alt>n"
 
 VIDEO, AUDIO, IMAGE, FOLDER, OTHER = "video", "audio", "image", "folder", "other"
+PDF, DOCUMENT, SLIDES, SHEET, EPUB, SUBTITLE, ARCHIVE = (
+    "pdf", "document", "slides", "spreadsheet", "ebook", "subtitles", "archive")
 CONVERT, TOOLS, ACTIONS = "convert", "tools", "actions"
 MODES = (CONVERT, TOOLS, ACTIONS)
 MODE_TITLES = {CONVERT: "Convert", TOOLS: "Tools", ACTIONS: "Actions"}
@@ -72,15 +98,38 @@ for _kind, _exts in {
     VIDEO: "mp4 mov mkv webm avi wmv flv m4v mpg mpeg ts mts 3gp gif",
     AUDIO: "mp3 m4a wav flac ogg oga opus aac aiff aif wma amr",
     IMAGE: "jpg jpeg png webp bmp tif tiff svg",
+    PDF: "pdf",
+    DOCUMENT: "docx doc odt rtf txt md markdown html htm",
+    SLIDES: "pptx ppt odp",
+    SHEET: "xlsx xls ods csv",
+    EPUB: "epub",
+    SUBTITLE: "srt vtt ass ssa",
+    ARCHIVE: "zip tar gz tgz bz2 tbz2 xz txz rar 7z",
 }.items():
     for _e in _exts.split():
         EXT_KIND[_e] = _kind
-EXT_ALIAS = {"jpeg": "jpg", "tif": "tiff", "aif": "aiff", "oga": "ogg"}
+EXT_ALIAS = {"jpeg": "jpg", "tif": "tiff", "aif": "aiff", "oga": "ogg", "htm": "html", "markdown": "md",
+             "ssa": "ass", "tgz": "targz", "tbz2": "tarbz2", "txz": "tarxz"}
+# archives named with two extensions, as their wedge ids
+COMPOUND_EXT = {".tar.gz": "targz", ".tar.bz2": "tarbz2", ".tar.xz": "tarxz"}
 
 
 def file_ext(path):
+    lower = path.lower()
+    for suffix, ext in COMPOUND_EXT.items():
+        if lower.endswith(suffix):
+            return ext
     ext = os.path.splitext(path)[1].lower().lstrip(".")
     return EXT_ALIAS.get(ext, ext)
+
+
+def file_stem(path):
+    """The name without its extension, both of them for .tar.gz and the like."""
+    name = os.path.basename(path)
+    for suffix in COMPOUND_EXT:
+        if name.lower().endswith(suffix):
+            return name[:-len(suffix)]
+    return os.path.splitext(name)[0]
 
 
 def kind_of(path):
@@ -90,10 +139,15 @@ def kind_of(path):
 
 
 class Action:
-    """One wedge. `spec` maps a file kind to (output ext or None for same, ffmpeg args)."""
+    """One wedge. `spec` maps a file kind to (output ext or None for same, how): `how` is a list
+    of ffmpeg arguments, DOC for LibreOffice/pandoc/poppler/Ghostscript, or ARCHIVE_JOB for
+    Python's own archive modules."""
 
-    def __init__(self, id, label, hint, spec=None, handler=None, suffix=None, prompt=None):
+    def __init__(self, id, label, hint, spec=None, handler=None, suffix=None, prompt=None, by_ext=None):
         self.id = id
+        # {kind: {ext: ffmpeg args}}: the file keeps its format, and other formats of that kind
+        # do not get the wedge (Compress)
+        self.by_ext = by_ext or {}
         self.label = label
         self.hint = hint
         self.spec = spec or {}
@@ -103,6 +157,15 @@ class Action:
 
     def accepts(self, kind):
         return kind in self.spec
+
+
+def plan(action, kind, ext):
+    """(output ext, how) for this wedge on a file of this kind and extension; None when the wedge
+    has nothing for that format. An output ext of None keeps the file's own extension."""
+    if kind in action.by_ext:
+        args = action.by_ext[kind].get(ext)
+        return None if args is None else (None, args)
+    return action.spec[kind]
 
 
 # yuv420p needs even dimensions; odd-sized GIFs and phone clips would fail otherwise
@@ -117,8 +180,44 @@ def _x264(crf, preset="medium"):
 # JPEG has no alpha: paint transparent PNG/SVG pixels white instead of black
 FLATTEN = "color=white,format=rgb24[bg];[bg][0:v]scale2ref[bg][fg];[bg][fg]overlay=shortest=1"
 GIF_FILTER = "fps=12,scale=480:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse"
+_SMALL_H264 = _x264(28, "slow")
+# Compress keeps the format: each one is squeezed with its own codec; formats with no smaller
+# form of themselves (BMP, ICO, SVG, AIFF) are left out rather than converted
+COMPRESS = {
+    VIDEO: {
+        **{e: _SMALL_H264 + ["-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart"]
+           for e in ("mp4", "mov", "m4v", "3gp")},
+        **{e: _SMALL_H264 + ["-c:a", "aac", "-b:a", "128k"] for e in ("mkv", "ts", "mts", "flv")},
+        "avi": _SMALL_H264 + ["-c:a", "libmp3lame", "-b:a", "128k"],
+        "webm": ["-vf", EVEN_SIZE, "-pix_fmt", "yuv420p", "-c:v", "libvpx-vp9", "-crf", "40", "-b:v", "0",
+                 "-row-mt", "1", "-c:a", "libopus", "-b:a", "96k"],
+        "wmv": ["-c:v", "wmv2", "-q:v", "8", "-c:a", "wmav2", "-b:a", "96k"],
+        **{e: ["-c:v", "mpeg2video", "-q:v", "8", "-c:a", "mp2", "-b:a", "128k"] for e in ("mpg", "mpeg")},
+        "gif": ["-vf", "fps=10,scale='min(480,iw)':-1:flags=lanczos,split[a][b];"
+                       "[a]palettegen=max_colors=128[p];[b][p]paletteuse=dither=bayer", "-loop", "0"],
+    },
+    AUDIO: {
+        "mp3": ["-vn", "-c:a", "libmp3lame", "-b:a", "96k"],
+        **{e: ["-vn", "-c:a", "aac", "-b:a", "96k"] for e in ("m4a", "aac")},
+        "ogg": ["-vn", "-c:a", "libvorbis", "-q:a", "2"],
+        "opus": ["-vn", "-c:a", "libopus", "-b:a", "64k"],
+        "flac": ["-vn", "-c:a", "flac", "-compression_level", "12"],  # still lossless
+        "wav": ["-vn", "-c:a", "adpcm_ms"],  # about a quarter of PCM, still a .wav
+        "wma": ["-vn", "-c:a", "wmav2", "-b:a", "96k"],
+    },
+    IMAGE: {
+        "jpg": ["-frames:v", "1", "-q:v", "6"],
+        # 256 colours, transparency kept: the big saving tools like TinyPNG make
+        "png": ["-vf", "split[a][b];[a]palettegen=reserve_transparent=1:stats_mode=single[p];"
+                       "[b][p]paletteuse=dither=sierra2_4a", "-frames:v", "1", "-compression_level", "9"],
+        "webp": ["-frames:v", "1", "-c:v", "libwebp", "-quality", "60"],
+        "tiff": ["-frames:v", "1", "-compression_algo", "deflate"],
+    },
+}
 AV = (VIDEO, AUDIO)
-ALL_FILES = (VIDEO, AUDIO, IMAGE, FOLDER, OTHER)
+ALL_FILES = (VIDEO, AUDIO, IMAGE, PDF, DOCUMENT, SLIDES, SHEET, EPUB, SUBTITLE, ARCHIVE, FOLDER, OTHER)
+DOC = "doc"            # run by document_steps()
+ARCHIVE_JOB = "archive"  # run by archive_job()
 
 WHEELS = {
     CONVERT: [
@@ -137,26 +236,48 @@ WHEELS = {
         Action("flac", "FLAC", "lossless", {AUDIO: ("flac", ["-vn", "-c:a", "flac"])}),
         Action("ogg", "OGG", "Vorbis", {AUDIO: ("ogg", ["-vn", "-c:a", "libvorbis", "-q:a", "5"])}),
         Action("opus", "Opus", "128k", {AUDIO: ("opus", ["-vn", "-c:a", "libopus", "-b:a", "128k"])}),
-        Action("png", "PNG", "lossless", {IMAGE: ("png", ["-frames:v", "1"])}),
-        Action("jpg", "JPG", "q 95", {IMAGE: ("jpg", ["-filter_complex", FLATTEN, "-frames:v", "1", "-q:v", "2"])}),
+        Action("png", "PNG", "lossless", {IMAGE: ("png", ["-frames:v", "1"]), PDF: ("png", DOC)}),
+        Action("jpg", "JPG", "q 95", {IMAGE: ("jpg", ["-filter_complex", FLATTEN, "-frames:v", "1", "-q:v", "2"]),
+                                       PDF: ("jpg", DOC)}),
         Action("webp", "WebP", "still or animated", {
             IMAGE: ("webp", ["-frames:v", "1", "-c:v", "libwebp", "-quality", "85"]),
             VIDEO: ("webp", ["-vf", "fps=12,scale=480:-1:flags=lanczos", "-c:v", "libwebp", "-quality", "75",
                              "-loop", "0", "-an"]),
         }),
-        Action("srt", "SRT", "subtitles", {VIDEO: ("srt", ["-map", "0:s:0", "-c:s", "srt"])}),
+        Action("srt", "SRT", "subtitles", {VIDEO: ("srt", ["-map", "0:s:0", "-c:s", "srt"]),
+                                            SUBTITLE: ("srt", ["-c:s", "srt"])}),
+        Action("vtt", "VTT", "WebVTT", {SUBTITLE: ("vtt", ["-c:s", "webvtt"])}),
+        Action("ass", "ASS", "styled", {SUBTITLE: ("ass", ["-c:s", "ass"])}),
         Action("bmp", "BMP", "bitmap", {IMAGE: ("bmp", ["-frames:v", "1"])}),
         Action("tiff", "TIFF", "print", {IMAGE: ("tiff", ["-frames:v", "1"])}),
         # Windows icons are at most 256 px a side
         Action("ico", "ICO", "icon", {IMAGE: ("ico", [
             "-vf", "scale='min(256,iw)':'min(256,ih)':force_original_aspect_ratio=decrease", "-frames:v", "1"])}),
+        # documents, slides, spreadsheets, e-books and PDFs (each shows only when a tool for it is installed)
+        Action("pdf", "PDF", "portable", {k: ("pdf", DOC) for k in (DOCUMENT, SLIDES, SHEET, EPUB)}),
+        Action("docx", "DOCX", "Word", {k: ("docx", DOC) for k in (DOCUMENT, EPUB, PDF)}),
+        Action("odt", "ODT", "OpenDocument", {DOCUMENT: ("odt", DOC)}),
+        Action("rtf", "RTF", "rich text", {DOCUMENT: ("rtf", DOC)}),
+        Action("txt", "TXT", "plain text", {k: ("txt", DOC) for k in (DOCUMENT, EPUB, PDF)}),
+        Action("html", "HTML", "web page", {k: ("html", DOC) for k in (DOCUMENT, EPUB)}),
+        Action("md", "MD", "Markdown", {k: ("md", DOC) for k in (DOCUMENT, EPUB)}),
+        Action("epub", "EPUB", "e-book", {DOCUMENT: ("epub", DOC)}),
+        Action("pptx", "PPTX", "PowerPoint", {SLIDES: ("pptx", DOC)}),
+        Action("odp", "ODP", "OpenDocument", {SLIDES: ("odp", DOC)}),
+        Action("xlsx", "XLSX", "Excel", {SHEET: ("xlsx", DOC)}),
+        Action("ods", "ODS", "OpenDocument", {SHEET: ("ods", DOC)}),
+        Action("csv", "CSV", "comma separated", {SHEET: ("csv", DOC)}),
+        # archives, repacked by Python itself
+        Action("zip", "ZIP", "archive", {ARCHIVE: ("zip", ARCHIVE_JOB)}),
+        Action("tar", "TAR", "archive", {ARCHIVE: ("tar", ARCHIVE_JOB)}),
+        Action("targz", "TAR.GZ", "gzip", {ARCHIVE: ("tar.gz", ARCHIVE_JOB)}),
     ],
     TOOLS: [
-        Action("compress", "Compress", "smaller file", {
-            VIDEO: ("mp4", _x264(28, "slow") + ["-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart"]),
-            AUDIO: ("mp3", ["-vn", "-c:a", "libmp3lame", "-b:a", "96k"]),
-            IMAGE: ("jpg", ["-filter_complex", FLATTEN, "-frames:v", "1", "-q:v", "6"]),
-        }, suffix="compressed"),
+        Action("compress", "Compress", "same format, smaller", {
+            VIDEO: (None, None), AUDIO: (None, None), IMAGE: (None, None),
+            PDF: ("pdf", DOC),
+        }, suffix="compressed", by_ext=COMPRESS),
+        Action("extract", "Extract", "unpack here", {ARCHIVE: ("", ARCHIVE_JOB)}),
         Action("trim", "Trim", "start → end", {VIDEO: (None, []), AUDIO: (None, [])},
                suffix="trim", prompt="trim"),
         Action("resize", "Resize", "max 1280px", {
@@ -191,8 +312,10 @@ WHEELS = {
         Action("copy", "Copy path", "clipboard", {k: None for k in ALL_FILES}, handler="copy"),
         Action("info", "Info", "ffprobe", {k: None for k in (VIDEO, AUDIO, IMAGE)}, handler="info"),
         Action("trash", "Trash", "move to bin", {k: None for k in ALL_FILES}, handler="trash"),
-        Action("join", "Join", "files end to end", {VIDEO: ("mp4", []), AUDIO: (None, [])},
+        Action("join", "Join", "files end to end", {VIDEO: ("mp4", []), AUDIO: (None, []), PDF: ("pdf", DOC)},
                handler="join", suffix="joined"),
+        Action("zipit", "Zip", "pack into .zip", {k: ("zip", ARCHIVE_JOB) for k in ALL_FILES if k != ARCHIVE},
+               handler="zip"),
     ],
 }
 
@@ -225,14 +348,27 @@ def encoders_needed(args):
     return {args[i + 1] for i, arg in enumerate(args[:-1]) if arg in ("-c:v", "-c:a", "-c:s") and args[i + 1] != "copy"}
 
 
-def can_run(action, kind):
-    """False when the wedge names an encoder this ffmpeg lacks (Homebrew's has no libwebp, say)."""
+def can_run(action, kind, ext=""):
+    """False when the wedge needs something missing here: an encoder this ffmpeg lacks
+    (Homebrew's has no libwebp), or LibreOffice, pandoc, poppler, Ghostscript or an unpacker."""
+    if action.handler == "join" and kind == PDF:
+        return bool(PDFUNITE)
+    if action.handler is not None:
+        return True
+    planned = plan(action, kind, ext)
+    if planned is None:
+        return False
+    target, how = planned
+    if how == DOC:
+        return bool(document_steps(f"x.{ext or kind}", target, "out", "work"))
+    if how == ARCHIVE_JOB:
+        return can_unpack(ext)
     encoders = available_encoders()
-    return action.handler is not None or not encoders or encoders_needed(action.spec[kind][1]) <= encoders
+    return not encoders or encoders_needed(how) <= encoders
 
 
 def wheel_items(mode, kind, ext):
-    items = [a for a in WHEELS[mode] if a.accepts(kind) and can_run(a, kind)]
+    items = [a for a in WHEELS[mode] if a.accepts(kind) and can_run(a, kind, ext)]
     if mode == CONVERT:
         items = [a for a in items if a.id != ext]
     if ext == "gif":
@@ -242,20 +378,26 @@ def wheel_items(mode, kind, ext):
     return items
 
 
+def unique_path(folder, stem, ext):
+    """folder/stem.ext, or stem 2.ext, stem 3.ext... if taken; no extension makes a folder name."""
+    suffix = f".{ext}" if ext else ""
+    candidate, n = os.path.join(folder, stem + suffix), 2
+    while os.path.exists(candidate):
+        candidate, n = os.path.join(folder, f"{stem} {n}{suffix}"), n + 1
+    return candidate
+
+
 def output_path(src, action, kind):
-    ext, _ = action.spec[kind]
-    # ffmpeg can read SVG but not write it, so same-format tools hand back a PNG
-    ext = ext or ("png" if file_ext(src) == "svg" else os.path.splitext(src)[1].lstrip(".")) or "out"
-    folder = os.path.dirname(src)
-    stem = os.path.splitext(os.path.basename(src))[0]
+    ext, _ = plan(action, kind, file_ext(src))
+    if ext is None:
+        # ffmpeg can read SVG but not write it, so same-format tools hand back a PNG
+        ext = "png" if file_ext(src) == "svg" else os.path.splitext(src)[1].lstrip(".") or "out"
+    stem = file_stem(src)
+    if kind == PDF and ext in ("png", "jpg"):
+        stem, ext = f"{stem}-{ext}-pages", ""  # one image per page, in a folder
     if action.suffix:
         stem = f"{stem}-{action.suffix}"
-    candidate = os.path.join(folder, f"{stem}.{ext}")
-    n = 2
-    while os.path.exists(candidate):
-        candidate = os.path.join(folder, f"{stem} {n}.{ext}")
-        n += 1
-    return candidate
+    return unique_path(os.path.dirname(src), stem, ext)
 
 
 def load_settings():
@@ -522,11 +664,173 @@ def rasterize_svg(path):
 
 def ffmpeg_command(src, kind, action, dst, extra_in=(), extra_out=()):
     """The ffmpeg call for one wedge; progress goes to stdout as key=value lines."""
-    _, args = action.spec[kind]
+    _, args = plan(action, kind, file_ext(src))
     if file_ext(src) == "svg":
         src = rasterize_svg(src)
     return [FFMPEG, "-hide_banner", "-nostdin", "-y", *extra_in, "-i", src, *args, *extra_out,
             "-progress", "pipe:1", "-nostats", dst]
+
+
+# ---------------------------------------------------------------- documents and archives
+
+LO_FILTERS = {
+    "pdf": "pdf", "docx": "docx:MS Word 2007 XML", "odt": "odt", "rtf": "rtf",
+    "txt": "txt:Text (encoded):UTF8", "html": "html", "epub": "epub",
+    "pptx": "pptx:Impress MS PowerPoint 2007 XML", "odp": "odp",
+    "xlsx": "xlsx:Calc MS Excel 2007 XML", "ods": "ods", "csv": "csv:Text - txt - csv (StarCalc):44,34,76,1",
+}
+PANDOC_READS = {"md": "markdown", "txt": "markdown", "docx": "docx", "odt": "odt", "html": "html", "epub": "epub"}
+PANDOC_WRITES = {"md": "gfm", "txt": "plain", "docx": "docx", "odt": "odt", "html": "html", "epub": "epub",
+                 "rtf": "rtf"}
+# LibreOffice runs one at a time on its own profile, so it works even while LibreOffice is open
+LO_PROFILE = os.path.join(GLib.get_user_cache_dir(), "narenj", "libreoffice")
+LO_LOCK = threading.Lock()
+
+
+def document_steps(src, target, dst, work):
+    """The commands that turn `src` into `target` at `dst`, as [(argv, file it writes)], using
+    `work` for intermediate files; None when no installed tool can."""
+    ext, stem = file_ext(src), file_stem(src)
+
+    def libreoffice(path, fmt, import_filter=None):
+        argv = [SOFFICE, "--headless", "--norestore", "-env:UserInstallation=" + Gio.File.new_for_path(
+            LO_PROFILE).get_uri(), "--convert-to", LO_FILTERS[fmt], "--outdir", work, path]
+        if import_filter:
+            argv.insert(4, f"--infilter={import_filter}")
+        return argv, os.path.join(work, f"{file_stem(path)}.{fmt}")
+
+    if ext == "pdf":
+        if target == "pdf" and GHOSTSCRIPT:  # Compress
+            return [([GHOSTSCRIPT, "-sDEVICE=pdfwrite", "-dPDFSETTINGS=/ebook", "-dNOPAUSE", "-dBATCH", "-dQUIET",
+                      f"-sOutputFile={dst}", src], dst)]
+        if target == "txt" and PDFTOTEXT:
+            return [([PDFTOTEXT, "-layout", src, dst], dst)]
+        if target in ("png", "jpg") and PDFTOPPM:
+            return [([PDFTOPPM, "-r", "150", "-png" if target == "png" else "-jpeg", src,
+                      os.path.join(dst, "page")], dst)]
+        if target == "docx" and SOFFICE:
+            return [libreoffice(src, "docx", "writer_pdf_import")]
+        return None
+    with_pandoc = PANDOC and ext in PANDOC_READS and target in PANDOC_WRITES
+    if ext in ("md", "epub") or target == "md":
+        if with_pandoc:
+            return [([PANDOC, src, "-f", PANDOC_READS[ext], "-t", PANDOC_WRITES[target], "-s", "-o", dst], dst)]
+        if target == "pdf" and PANDOC and SOFFICE and ext in PANDOC_READS:  # via a web page
+            html = os.path.join(work, f"{stem}.html")
+            return [([PANDOC, src, "-f", PANDOC_READS[ext], "-s", "-o", html], html), libreoffice(html, "pdf")]
+        return None
+    if SOFFICE and target in LO_FILTERS:
+        # web pages would open in Writer/Web, which cannot export RTF or EPUB; open them as text documents
+        return [libreoffice(src, target, "HTML (StarWriter)" if ext == "html" else None)]
+    if with_pandoc:
+        return [([PANDOC, src, "-f", PANDOC_READS[ext], "-t", PANDOC_WRITES[target], "-s", "-o", dst], dst)]
+    return None
+
+
+def run_steps(steps, dst, on_process=None):
+    """Run document_steps' commands, then move the result to `dst`. Returns (ok, message)."""
+    produced = dst
+    for argv, produced in steps:
+        lock = LO_LOCK if argv[0] == SOFFICE else threading.Lock()
+        with lock:
+            proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+                                    **NO_CONSOLE)
+            if on_process:
+                on_process(proc)
+            _, err = proc.communicate()
+        if proc.returncode != 0 or not os.path.exists(produced):
+            lines = [line for line in (err or "").splitlines() if line.strip()]
+            return False, lines[-1] if lines else f"{os.path.basename(argv[0])} could not convert it"
+    if produced != dst:
+        shutil.move(produced, dst)
+    return True, describe_output(dst)
+
+
+def describe_output(path):
+    if os.path.isdir(path):
+        count = len(os.listdir(path))
+        return f"{count} file{'s' if count != 1 else ''}"
+    return human_size(os.path.getsize(path)) if os.path.exists(path) else ""
+
+
+def convert_document(src, kind, action, dst, on_process=None):
+    """A document wedge (LibreOffice, pandoc, poppler or Ghostscript). Returns (ok, message)."""
+    target = plan(action, kind, file_ext(src))[0]
+    with tempfile.TemporaryDirectory(prefix="narenj-") as work:
+        steps = document_steps(src, target, dst, work)
+        if not steps:
+            return False, "No converter for this is installed"
+        if kind == PDF and target in ("png", "jpg"):
+            os.makedirs(dst, exist_ok=True)
+        return run_steps(steps, dst, on_process)
+
+
+PYTHON_UNPACKS = {"zip", "tar", "targz", "tarbz2", "tarxz", "gz", "bz2", "xz"}
+
+
+def can_unpack(ext):
+    return ext in PYTHON_UNPACKS or bool(BSDTAR or SEVENZIP)
+
+
+def unpack(src, dest):
+    """Unpack an archive into `dest`, skipping entries that would land outside it."""
+    ext, root = file_ext(src), os.path.realpath(dest)
+
+    def inside(name):
+        path = os.path.realpath(os.path.join(dest, name))
+        return path == root or path.startswith(root + os.sep)
+
+    if ext == "zip":
+        with zipfile.ZipFile(src) as archive:
+            for member in archive.infolist():
+                if inside(member.filename):
+                    archive.extract(member, dest)
+    elif ext in ("tar", "targz", "tarbz2", "tarxz"):
+        with tarfile.open(src) as archive:
+            archive.extractall(dest, members=[m for m in archive.getmembers()
+                                              if (m.isfile() or m.isdir()) and inside(m.name)])
+    elif ext in ("gz", "bz2", "xz"):  # a single compressed file
+        opener = {"gz": gzip.open, "bz2": bz2.open, "xz": lzma.open}[ext]
+        with opener(src) as packed, open(os.path.join(dest, file_stem(src)), "wb") as out:
+            shutil.copyfileobj(packed, out)
+    elif BSDTAR:  # RAR, 7z; bsdtar refuses paths outside dest itself
+        subprocess.run([BSDTAR, "-xf", src, "-C", dest], check=True, capture_output=True, **NO_CONSOLE)
+    elif SEVENZIP:
+        subprocess.run([SEVENZIP, "x", "-y", f"-o{dest}", src], check=True, capture_output=True, **NO_CONSOLE)
+    else:
+        raise RuntimeError(f"unpacking .{ext} needs bsdtar or 7-Zip")
+
+
+def pack(paths, fmt, dst):
+    """Pack files and folders into a zip, tar or tar.gz at `dst`."""
+    if fmt == "zip":
+        with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as archive:
+            for path in paths:
+                base = os.path.dirname(os.path.abspath(path))
+                for folder, _, names in os.walk(path) if os.path.isdir(path) else [(base, [], [os.path.basename(path)])]:
+                    if folder != base:
+                        archive.write(folder, os.path.relpath(folder, base))
+                    for name in names:
+                        full = os.path.join(folder, name)
+                        archive.write(full, os.path.relpath(full, base))
+    else:
+        with tarfile.open(dst, {"tar": "w", "tar.gz": "w:gz"}[fmt]) as archive:
+            for path in paths:
+                archive.add(path, arcname=os.path.basename(path))
+
+
+def archive_job(sources, kind, action, dst):
+    """Extract, repack (Convert) or Zip, with Python's own modules. Returns (ok, message)."""
+    if action.id == "extract":
+        os.makedirs(dst)
+        unpack(sources[0], dst)
+    elif action.id == "zipit":
+        pack(sources, "zip", dst)
+    else:
+        with tempfile.TemporaryDirectory(prefix="narenj-") as work:
+            unpack(sources[0], work)
+            pack([os.path.join(work, name) for name in sorted(os.listdir(work))], action.spec[kind][0], dst)
+    return True, describe_output(dst)
 
 
 def has_stream(path, codec_type):
@@ -678,6 +982,8 @@ ICONS = {
     "info": "dialog-information",
     "trash": "user-trash",
     "join": "insert-link",
+    "extract": "package-x-generic",
+    "zipit": "package-x-generic",
 }
 # Narenj ships the icons it uses (icons/, from Adwaita); the system theme is only a fallback,
 # and its layout differs between versions (scalable/<folder>/ before 43, symbolic/<folder>/ after)
@@ -1482,6 +1788,10 @@ class Job:
         self.proc = None
         self.cancelled = False
 
+    def attach(self, proc):
+        """The external process doing the work, so Cancel can stop it."""
+        self.proc = proc
+
     def progress(self, fraction, _elapsed, _total):
         self.fraction = min(1.0, fraction)
         self.win.jobs_changed()
@@ -1626,12 +1936,13 @@ class Window(Gtk.ApplicationWindow):
         if action.handler:
             getattr(self, f"do_{action.handler}")(files)
             return
-        if not FFMPEG:
-            self.toast("ffmpeg not found", "sudo apt install ffmpeg")
-            return
-        targets = [(f, kind_of(f)) for f in files if action.accepts(kind_of(f))]
+        targets = [(f, kind_of(f)) for f in files
+                   if action.accepts(kind_of(f)) and plan(action, kind_of(f), file_ext(f))]
         if not targets:
             self.toast("Not for this file", action.label)
+            return
+        if not FFMPEG and any(isinstance(plan(action, k, file_ext(f))[1], list) for f, k in targets):
+            self.toast("ffmpeg not found", "sudo apt install ffmpeg")
             return
         if action.id == "srt":
             targets = [(f, k) for f, k in targets if has_stream(f, "subtitle")]
@@ -1646,9 +1957,40 @@ class Window(Gtk.ApplicationWindow):
 
     def start_job(self, src, kind, action, extra_in=(), extra_out=(), duration=None):
         dst = output_path(src, action, kind)
+        how = plan(action, kind, file_ext(src))[1]
+        if how == DOC:
+            self.run_task(src, dst, action, lambda job: convert_document(src, kind, action, dst, job.attach))
+            return
+        if how == ARCHIVE_JOB:
+            self.run_task(src, dst, action, lambda job: archive_job([src], kind, action, dst))
+            return
         cmd = ffmpeg_command(src, kind, action, dst, extra_in, extra_out)
         self.run_ffmpeg(src, dst, action, lambda: (
             cmd, duration if duration is not None else (probe_duration(src) if kind != IMAGE else 0)))
+
+    def run_task(self, src, dst, action, task):
+        """Track a non-ffmpeg job (documents, archives). `task(job)` runs off the UI thread and
+        returns (ok, message); a failed task leaves no half-written output behind."""
+        job = Job(self, src, dst, action)
+        self.jobs.append(job)
+        self.jobs_changed()
+
+        def worker():
+            try:
+                ok, message = task(job)
+            except (OSError, RuntimeError, ValueError, tarfile.TarError, zipfile.BadZipFile,
+                    subprocess.CalledProcessError) as e:
+                ok, message = False, str(e) or e.__class__.__name__
+            if not ok:
+                if job.cancelled:
+                    message = "Cancelled"
+                if os.path.isdir(dst):
+                    shutil.rmtree(dst, ignore_errors=True)
+                elif os.path.exists(dst):
+                    os.remove(dst)
+            GLib.idle_add(job.finish, ok, message)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def run_ffmpeg(self, src, dst, action, prepare):
         """Track one ffmpeg run as a job. `prepare` runs off the UI thread (it may probe files)
@@ -1799,11 +2141,26 @@ class Window(Gtk.ApplicationWindow):
         kind = kind_of(files[0])
         parts = sorted((f for f in files if kind_of(f) == kind), key=natural_key)
         if kind not in join.spec or len(parts) < 2:
-            self.toast("Join", "drop 2 or more videos or songs")
+            self.toast("Join", "drop 2 or more videos, songs or PDFs")
             return
         dst = output_path(parts[0], join, kind)
+        if kind == PDF:
+            if not PDFUNITE:
+                self.toast("Join", "needs poppler (pdfunite)")
+                return
+            self.run_task(parts[0], dst, join, lambda job: run_steps([([PDFUNITE, *parts, dst], dst)], dst,
+                                                                      job.attach))
+            return
         self.run_ffmpeg(parts[0], dst, join, lambda: (
             join_command(parts, kind, dst), sum(probe_duration(f) for f in parts)))
+
+    def do_zip(self, files):
+        zipit = next(a for a in WHEELS[ACTIONS] if a.id == "zipit")
+        if len(files) == 1:
+            dst = output_path(files[0], zipit, kind_of(files[0]))
+        else:
+            dst = unique_path(os.path.dirname(files[0]), "Archive", "zip")
+        self.run_task(files[0], dst, zipit, lambda job: archive_job(files, None, zipit, dst))
 
     def do_trash(self, files):
         trashed = 0

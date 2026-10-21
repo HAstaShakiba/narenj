@@ -31,12 +31,15 @@ Architecture: all
 Installed-Size: $(du -sk "$ROOT/usr" | cut -f1)
 Depends: python3 (>= 3.10), python3-gi, python3-gi-cairo, python3-cairo, gir1.2-gtk-4.0 (>= 4.6),
  gir1.2-adw-1 (>= 1.1), gir1.2-rsvg-2.0, gir1.2-pango-1.0, ffmpeg, fonts-inter, adwaita-icon-theme
-Recommends: gnome-shell (>= 42)
+Recommends: gnome-shell (>= 42), poppler-utils, ghostscript, pandoc, libarchive-tools
+Suggests: libreoffice-writer, libreoffice-calc, libreoffice-impress
 Maintainer: HAstaShakiba <HAstaShakiba@users.noreply.github.com>
 Description: Drag-and-drop ffmpeg wheel for GNOME
  Drop a file on Narenj's wheel and pick a wedge to convert, compress, trim,
- resize or otherwise process it with ffmpeg, or to open, reveal, copy or
- trash it. Shift, Ctrl and Alt switch between the Convert, Tools and Actions
+ resize or otherwise process it: video, audio and images with ffmpeg; PDFs,
+ documents, slides, spreadsheets and e-books with LibreOffice, pandoc, poppler
+ and Ghostscript; subtitles; and ZIP, TAR, GZIP, RAR and 7z archives. It can
+ also open, reveal, copy, zip or trash files. Shift, Ctrl and Alt switch between the Convert, Tools and Actions
  wheels, even while dragging. A small GNOME Shell extension keeps the wheel
  above other windows; run "narenj --setup" once per user to enable it and the
  Ctrl+Alt+N shortcut (Narenj also does this on its first start).

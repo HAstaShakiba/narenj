@@ -18,7 +18,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-rsvg-2.0 ffmpeg
+            python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-rsvg-2.0 ffmpeg \
+            poppler-utils ghostscript pandoc libarchive-tools libreoffice-writer-nogui libreoffice-calc-nogui
       - name: Test
         run: python3 -m unittest discover -s tests -v
 
@@ -58,6 +59,7 @@ jobs:
             mingw-w64-ucrt-x86_64-dav1d
             mingw-w64-ucrt-x86_64-zlib
             mingw-w64-ucrt-x86_64-ccache
+            mingw-w64-ucrt-x86_64-poppler
             make
             diffutils
       - uses: actions/cache@v4
@@ -137,7 +139,7 @@ jobs:
       - name: Install dependencies
         run: |
           brew install gtk4 libadwaita pygobject3 py3cairo librsvg ffmpeg adwaita-icon-theme \
-            x264 libvpx opus lame libvorbis webp dav1d nasm pkgconf ccache
+            x264 libvpx opus lame libvorbis webp dav1d nasm pkgconf ccache poppler pandoc ghostscript
       - name: Find pygobject's Python
         run: |
           py="$(brew deps pygobject3 | grep '^python@' | sort -V | tail -1)"

@@ -53,8 +53,9 @@ cp "$PREFIX/bin/gdbus.exe" "$OUT/bin/"
 SEED=(libgtk-4-1.dll libadwaita-1-0.dll librsvg-2-2.dll libpangocairo-1.0-0.dll libgraphene-1.0-0.dll
       libharfbuzz-gobject-0.dll libgirepository-1.0-1.dll)
 for dll in "${SEED[@]}"; do cp "$PREFIX/bin/$dll" "$OUT/bin/"; done
-# ffmpeg first, so the encoder libraries its DLLs link to are collected with everything else
+# ffmpeg and poppler's PDF tools first, so the libraries they link to are collected with everything else
 cp "$FFMPEG_DIR"/*.exe "$FFMPEG_DIR"/*.dll "$OUT/bin/"
+cp "$PREFIX/bin/pdftotext.exe" "$PREFIX/bin/pdftoppm.exe" "$PREFIX/bin/pdfunite.exe" "$OUT/bin/"
 mapfile -t BINARIES < <(find "$OUT" -type f \( -name '*.exe' -o -name '*.dll' -o -name '*.pyd' \))
 PREFIX_WIN="$(cygpath -w "$PREFIX" | tr '[:upper:]' '[:lower:]')"
 for _ in 1 2 3; do  # a few rounds pick up dependencies of newly copied DLLs

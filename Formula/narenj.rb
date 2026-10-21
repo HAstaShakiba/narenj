@@ -12,9 +12,12 @@ class Narenj < Formula
 
   depends_on "adwaita-icon-theme"
   depends_on "ffmpeg"
+  depends_on "ghostscript"
   depends_on "gtk4"
   depends_on "libadwaita"
   depends_on "librsvg"
+  depends_on "pandoc"
+  depends_on "poppler"
   depends_on "py3cairo"
   depends_on "pygobject3"
 
@@ -36,6 +39,7 @@ class Narenj < Formula
     <<~EOS
       Start Narenj with:  narenj
       Control+Option+N shows and hides the wheel while it runs.
+      For Word, PowerPoint and Excel files, also install LibreOffice:  brew install --cask libreoffice
     EOS
   end
 

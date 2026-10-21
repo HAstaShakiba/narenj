@@ -8,6 +8,10 @@ ROOT = os.path.abspath(os.path.join(SPECPATH, "..", ".."))
 FFMPEG = os.environ["NARENJ_FFMPEG_DIR"]
 ffmpeg_files = [os.path.join(FFMPEG, f) for f in sorted(os.listdir(FFMPEG))
                 if (f in ("ffmpeg", "ffprobe") or f.endswith(".dylib")) and not os.path.islink(os.path.join(FFMPEG, f))]
+# poppler's PDF tools from Homebrew go in the same folder, which Narenj puts on PATH
+BREW = os.popen("brew --prefix").read().strip() or "/opt/homebrew"
+ffmpeg_files += [os.path.join(BREW, "bin", tool) for tool in ("pdftotext", "pdftoppm", "pdfunite")
+                 if os.path.exists(os.path.join(BREW, "bin", tool))]
 
 a = Analysis(
     [os.path.join(ROOT, "narenj.py")],

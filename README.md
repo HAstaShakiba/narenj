@@ -14,16 +14,41 @@ processes it with ffmpeg and saves the result next to the original. Everything r
 
 ## Wheels
 
-| Wheel | Video | Audio | Image |
-|---|---|---|---|
-| Convert | MP4, MOV, MKV, WebM, GIF, animated WebP, MP3, SRT subtitles | MP3, M4A, WAV, FLAC, OGG, Opus | PNG, JPG, WebP, BMP, TIFF, ICO |
-| Tools | Compress, Trim, Resize, Rotate, Mute, Frame, Normalize, Strip metadata | Compress, Trim, Normalize, Mono, Strip metadata | Compress, Resize, Rotate, Grayscale, Strip metadata |
-| Actions | Open, Reveal in Files, Copy path, Info, Trash, Join | same | Open, Reveal, Copy path, Info, Trash |
+| Files | Convert | Tools |
+|---|---|---|
+| Video | MP4, MOV, MKV, WebM, GIF, animated WebP, MP3, SRT subtitles | Compress, Trim, Resize, Rotate, Mute, Frame, Normalize, Strip metadata |
+| Audio | MP3, M4A, WAV, FLAC, OGG, Opus | Compress, Trim, Normalize, Mono, Strip metadata |
+| Images (incl. SVG) | PNG, JPG, WebP, BMP, TIFF, ICO | Compress, Resize, Rotate, Grayscale, Strip metadata |
+| PDF | PNG or JPG pages, DOCX, TXT | Compress |
+| Documents (DOCX, DOC, ODT, RTF, TXT, MD, HTML) | PDF, DOCX, ODT, RTF, TXT, HTML, MD, EPUB | |
+| Slides (PPTX, PPT, ODP) | PDF, PPTX, ODP | |
+| Spreadsheets (XLSX, XLS, ODS, CSV) | PDF, XLSX, ODS, CSV | |
+| EPUB | PDF, DOCX, TXT, HTML, MD | |
+| Subtitles (SRT, VTT, ASS) | SRT, VTT, ASS | |
+| Archives (ZIP, TAR, TAR.GZ/BZ2/XZ, GZ, RAR, 7z) | ZIP, TAR, TAR.GZ | Extract |
 
-A wheel never shows more than 8 wedges, and Convert hides the file's own format. SVG files count as
-images (their tools write PNG). **Join** puts several videos or songs end to end, in name order;
-videos of different sizes are fitted to the first one's frame. **SRT** pulls out a video's first
-subtitle track.
+**Actions** for every file: Open, Reveal, Copy path, Trash, **Zip** (packs the files or folders),
+plus Info for media and **Join** for several videos, songs or PDFs (end to end, in name order;
+videos of different sizes are fitted to the first one's frame).
+
+**Compress** keeps the file's format: a PNG stays a PNG (256 colours, transparency kept), a JPG,
+WebP, MP4, WebM, MP3 or WAV stays what it was, only smaller; FLAC and TIFF are compressed
+losslessly. Formats with no smaller form of themselves (BMP, ICO, SVG, AIFF) do not offer it.
+
+A wheel never shows more than 8 wedges, Convert hides the file's own format, and a wedge only
+appears when what it needs is installed:
+
+| Needs | For | Linux | macOS (Homebrew) | Windows |
+|---|---|---|---|---|
+| ffmpeg | video, audio, images, subtitles | dependency | dependency | bundled |
+| LibreOffice | documents, slides, spreadsheets, PDF → DOCX | `libreoffice-writer` etc. | `brew install --cask libreoffice` | [libreoffice.org](https://www.libreoffice.org/) |
+| pandoc | Markdown, EPUB | recommended | dependency | [pandoc.org](https://pandoc.org/installing.html) |
+| poppler | PDF pages, text, Join | recommended | dependency | bundled |
+| Ghostscript | PDF Compress | recommended | dependency | [ghostscript.com](https://ghostscript.com/) |
+| bsdtar or 7-Zip | RAR and 7z | `libarchive-tools` | built in | built in |
+
+ZIP, TAR and GZIP need nothing: Narenj packs and unpacks them itself, and never writes outside the
+folder it extracts into.
 
 ## Using it
 
