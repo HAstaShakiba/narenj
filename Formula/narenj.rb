@@ -24,7 +24,8 @@ class Narenj < Formula
   end
 
   def install
-    libexec.install "narenj.py", "narenj.svg", "icons"
+    libexec.install "narenj.py", "narenj.svg"
+    libexec.install "icons" if File.directory?("icons") # shipped since 1.3.2
     (bin/"narenj").write <<~SH
       #!/bin/sh
       exec "#{python.opt_libexec}/bin/python" "#{libexec}/narenj.py" "$@"
