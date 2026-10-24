@@ -1,0 +1,9 @@
+macOS window 'Narenj' styleMask=0x8007
+macOS window '' styleMask=0x8000
+macOS window 'Narenj' styleMask=0x8000
+macOS window '' styleMask=0x8000
+
+(Narenj:11848): Gdk-WARNING **: 07:36:28.642: gdk_frame_timings_presented() called on skipped frame.
+narenj.py:2292: DeprecationWarning: Adw.PreferencesWindow.add is deprecated
+  self.add(page)
+self-test: wheel and settings shown
