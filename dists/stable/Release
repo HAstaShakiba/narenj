@@ -1,7 +1,7 @@
 Architectures: all amd64 arm64 i386
 Codename: stable
 Components: main
-Date: Wed, 21 Oct 2026 13:17:05 +0000
+Date: Sat, 24 Oct 2026 07:33:37 +0000
 Description: Narenj, a drag-and-drop ffmpeg wheel for GNOME
 Label: Narenj
 Origin: Narenj

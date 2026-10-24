@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://hastashakiba.github.io/narenj/</loc><lastmod>2026-10-21</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url><loc>https://hastashakiba.github.io/narenj/</loc><lastmod>2026-10-24</lastmod><changefreq>weekly</changefreq><priority>1.0</priority><xhtml:link rel="alternate" hreflang="en" href="https://hastashakiba.github.io/narenj/"/><xhtml:link rel="alternate" hreflang="fa" href="https://hastashakiba.github.io/narenj/fa/"/><xhtml:link rel="alternate" hreflang="x-default" href="https://hastashakiba.github.io/narenj/"/></url>
+  <url><loc>https://hastashakiba.github.io/narenj/fa/</loc><lastmod>2026-10-24</lastmod><changefreq>weekly</changefreq><priority>0.9</priority><xhtml:link rel="alternate" hreflang="en" href="https://hastashakiba.github.io/narenj/"/><xhtml:link rel="alternate" hreflang="fa" href="https://hastashakiba.github.io/narenj/fa/"/><xhtml:link rel="alternate" hreflang="x-default" href="https://hastashakiba.github.io/narenj/"/></url>
 </urlset>
